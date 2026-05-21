@@ -199,12 +199,7 @@ class _MapScreenState extends State<MapScreen> {
                         ),
                 ),
 
-                // Top-left: Title bar
-                Positioned(
-                  top: 16,
-                  left: 16,
-                  child: _buildTitleBar(),
-                ),
+                // (Title bar was moved to MainScreen)
 
                 // Top-right: Layer indicator
                 Positioned(
@@ -213,17 +208,8 @@ class _MapScreenState extends State<MapScreen> {
                   child: _buildLayerBadge(),
                 ),
 
-                // Bottom-right: Global stats
-                Positioned(
-                  bottom: 16,
-                  right: 16,
-                  child: GlobalStatsWidget(
-                    tongDienTich: _repo.tongDienTich(_filteredUnits),
-                    tongDanSo: _repo.tongDanSo(_filteredUnits),
-                    matDoTrungBinh: _repo.matDoTrungBinh(_filteredUnits),
-                    soLuongDonVi: _filteredUnits.length,
-                  ),
-                ),
+                // (Global stats moved to StatsScreen)
+
 
                 // Bottom-left: Detail panel
                 Positioned(
@@ -245,28 +231,6 @@ class _MapScreenState extends State<MapScreen> {
                 ),
               ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTitleBar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xCC1B2838),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.15)),
-      ),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.flag_rounded, color: Color(0xFFDA251D), size: 20),
-          SizedBox(width: 8),
-          Text(
-            'Bản đồ hành chính Việt Nam sau sáp nhập',
-            style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
           ),
         ],
       ),

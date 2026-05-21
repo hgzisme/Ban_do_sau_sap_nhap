@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_maps/maps.dart';
 import 'package:syncfusion_flutter_core/theme.dart';
@@ -111,6 +112,7 @@ class MapWidget extends StatefulWidget {
 
 class _MapWidgetState extends State<MapWidget> {
   late MapZoomPanBehavior _zoomPanBehavior;
+  bool _isMapReady = false;
 
   @override
   void initState() {
@@ -120,26 +122,30 @@ class _MapWidgetState extends State<MapWidget> {
       enablePinching: true,
       enableDoubleTapZooming: true,
       enableMouseWheelZooming: true,
-      zoomLevel: 5.5,
-      focalLatLng: const MapLatLng(16.0, 107.5), // Center of Vietnam
-      minZoomLevel: 4,
-      maxZoomLevel: 12,
+      zoomLevel: 4.5,
+      focalLatLng: const MapLatLng(15.0, 108.5), // Center to cover both mainland and islands
+      minZoomLevel: 3,
+      maxZoomLevel: 15,
       showToolbar: false,
     );
+    _startReadyTimer();
   }
 
-  void zoomIn() {
-    final current = _zoomPanBehavior.zoomLevel;
-    if (current < 12) {
-      _zoomPanBehavior.zoomLevel = current + 1;
+  @override
+  void didUpdateWidget(MapWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.assetPath != widget.assetPath) {
+      setState(() => _isMapReady = false);
+      _startReadyTimer();
     }
   }
 
-  void zoomOut() {
-    final current = _zoomPanBehavior.zoomLevel;
-    if (current > 4) {
-      _zoomPanBehavior.zoomLevel = current - 1;
-    }
+  void _startReadyTimer() {
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      if (mounted) {
+        setState(() => _isMapReady = true);
+      }
+    });
   }
 
   MapShapeSource _buildShapeSource() {
@@ -218,17 +224,19 @@ class _MapWidgetState extends State<MapWidget> {
     return Stack(
       children: [
         // Main map
-        SfMapsTheme(
-          data: SfMapsThemeData(
-            shapeHoverColor: const Color(0x8800E5FF),
-            shapeHoverStrokeColor: const Color(0xFF00E5FF),
-            shapeHoverStrokeWidth: 2.5,
-          ),
-          child: SfMaps(
-            layers: [
-              MapShapeLayer(
-                source: _buildShapeSource(),
-                zoomPanBehavior: _zoomPanBehavior,
+        AbsorbPointer(
+          absorbing: !_isMapReady,
+          child: SfMapsTheme(
+            data: SfMapsThemeData(
+              shapeHoverColor: const Color(0x8800E5FF),
+              shapeHoverStrokeColor: const Color(0xFF00E5FF),
+              shapeHoverStrokeWidth: 2.5,
+            ),
+            child: SfMaps(
+              layers: [
+                MapShapeLayer(
+                  source: _buildShapeSource(),
+                  zoomPanBehavior: _zoomPanBehavior,
                 strokeColor: Colors.white.withValues(alpha: 0.25),
                 strokeWidth: 0.8,
                 selectedIndex: widget.selectedIndex,
@@ -288,14 +296,17 @@ class _MapWidgetState extends State<MapWidget> {
             ],
           ),
         ),
+        ),
 
         // Zoom controls
         Positioned(
           right: 16,
           bottom: 100,
-          child: _ZoomControls(
-            onZoomIn: zoomIn,
-            onZoomOut: zoomOut,
+          child: AbsorbPointer(
+            absorbing: !_isMapReady,
+            child: _ZoomControls(
+              zoomPanBehavior: _zoomPanBehavior,
+            ),
           ),
         ),
       ],
@@ -305,17 +316,64 @@ class _MapWidgetState extends State<MapWidget> {
 
 // ─── Zoom Controls ──────────────────────────────────────────────────
 
-class _ZoomControls extends StatelessWidget {
-  final VoidCallback onZoomIn;
-  final VoidCallback onZoomOut;
+class _ZoomControls extends StatefulWidget {
+  final MapZoomPanBehavior zoomPanBehavior;
 
   const _ZoomControls({
-    required this.onZoomIn,
-    required this.onZoomOut,
+    required this.zoomPanBehavior,
   });
 
   @override
+  State<_ZoomControls> createState() => _ZoomControlsState();
+}
+
+class _ZoomControlsState extends State<_ZoomControls> {
+  Timer? _timer;
+  double _lastZoom = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _lastZoom = widget.zoomPanBehavior.zoomLevel;
+    _timer = Timer.periodic(const Duration(milliseconds: 150), (_) {
+      final currentZoom = widget.zoomPanBehavior.zoomLevel;
+      if (currentZoom != _lastZoom && mounted) {
+        setState(() {
+          _lastZoom = currentZoom;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _zoomIn() {
+    final current = widget.zoomPanBehavior.zoomLevel;
+    if (current < 15) {
+      widget.zoomPanBehavior.zoomLevel = (current + 1).clamp(3.0, 15.0);
+      _lastZoom = widget.zoomPanBehavior.zoomLevel;
+      setState(() {});
+    }
+  }
+
+  void _zoomOut() {
+    final current = widget.zoomPanBehavior.zoomLevel;
+    if (current > 3) {
+      widget.zoomPanBehavior.zoomLevel = (current - 1).clamp(3.0, 15.0);
+      _lastZoom = widget.zoomPanBehavior.zoomLevel;
+      setState(() {});
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final currentZoom = widget.zoomPanBehavior.zoomLevel;
+    final displayZoom = currentZoom.toStringAsFixed(1);
+
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xDD1B2838),
@@ -334,13 +392,60 @@ class _ZoomControls extends StatelessWidget {
         children: [
           _ZoomButton(
             icon: Icons.add_rounded,
-            onTap: onZoomIn,
+            onTap: _zoomIn,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
           ),
+          
           Container(height: 1, width: 36, color: const Color(0xFF2A3F54)),
+          
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: SizedBox(
+              height: 120,
+              child: RotatedBox(
+                quarterTurns: 3,
+                child: SliderTheme(
+                  data: SliderThemeData(
+                    trackHeight: 3,
+                    activeTrackColor: const Color(0xFF00E5FF),
+                    inactiveTrackColor: const Color(0xFF2A3F54),
+                    thumbColor: Colors.white,
+                    overlayColor: const Color(0xFF00E5FF).withValues(alpha: 0.2),
+                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+                  ),
+                  child: Slider(
+                    value: currentZoom,
+                    min: 3,
+                    max: 15,
+                    onChanged: (value) {
+                      setState(() {
+                        widget.zoomPanBehavior.zoomLevel = value;
+                      });
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+          
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8.0),
+            child: Text(
+              '${displayZoom}x',
+              style: const TextStyle(
+                color: Color(0xFF00E5FF),
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+
+          Container(height: 1, width: 36, color: const Color(0xFF2A3F54)),
+          
           _ZoomButton(
             icon: Icons.remove_rounded,
-            onTap: onZoomOut,
+            onTap: _zoomOut,
             borderRadius: const BorderRadius.vertical(bottom: Radius.circular(11)),
           ),
         ],

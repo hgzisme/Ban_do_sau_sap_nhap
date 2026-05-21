@@ -1,8 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'screens/map_screen.dart';
+import 'screens/main_screen.dart';
 
 void main() {
+  FlutterError.onError = (FlutterErrorDetails details) {
+    final exceptionStr = details.exception.toString();
+    final stackStr = details.stack.toString();
+    // Suppress known Syncfusion map gesture error during loading
+    if (exceptionStr.contains('Null check operator used on a null value') &&
+        stackStr.contains('getVisibleBounds')) {
+      return; // Ignore
+    }
+    // Forward other errors
+    FlutterError.presentError(details);
+  };
   runApp(const MyApp());
 }
 
@@ -26,7 +37,7 @@ class MyApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const MapScreen(),
+      home: const MainScreen(),
     );
   }
 }
