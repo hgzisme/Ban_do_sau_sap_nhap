@@ -78,3 +78,13 @@ Once the prerequisites are met, follow these steps to run the application:
    ```
 
 Alternatively, if you are using Visual Studio Code or Android Studio, you can simply select your desktop device (e.g., "Windows (desktop)") from the device dropdown and click the "Run" or "Debug" button.
+
+flutter doctor (kiểm tra đã đủ các công cụ cần thiết để chạy ứng dụng desktop chưa)
+
+flutter pub get (cài đặt các gói thư viện cần thiết)
+
+flutter devices (kiểm tra các thiết bị có thể chạy ứng dụng)
+
+flutter run -d chrome --release (chay ứng dụng trên trình duyệt Chrome ở chế độ release)
+
+```

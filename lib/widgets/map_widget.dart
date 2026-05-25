@@ -11,43 +11,43 @@ import '../repositories/map_repository.dart';
 const Map<String, Color> categoryColors = {
   // Province-level types
   'Thành phố': Color(0xFFFF6B6B),
-  'Tỉnh':      Color(0xFF4ECDC4),
-  'Thủ đô':    Color(0xFFFFE66D),
+  'Tỉnh': Color(0xFF4ECDC4),
+  'Thủ đô': Color(0xFFFFE66D),
   // Commune-level types
-  'Phường':    Color(0xFFA29BFE),
-  'Xã':        Color(0xFF55EFC4),
-  'Đặc khu':   Color(0xFFFFA502),
+  'Phường': Color(0xFFA29BFE),
+  'Xã': Color(0xFF55EFC4),
+  'Đặc khu': Color(0xFFFFA502),
   // Legacy types
   'Thành phố trực thuộc TW': Color(0xFFFF6B6B),
-  'Quận':      Color(0xFFA29BFE),
-  'Huyện':     Color(0xFF55EFC4),
-  'Thị xã':    Color(0xFFFFA502),
-  'Thị trấn':  Color(0xFFD4A574),
-  'Quần đảo':  Color(0xFF74B9FF),
+  'Quận': Color(0xFFA29BFE),
+  'Huyện': Color(0xFF55EFC4),
+  'Thị xã': Color(0xFFFFA502),
+  'Thị trấn': Color(0xFFD4A574),
+  'Quần đảo': Color(0xFF74B9FF),
 };
 
 /// Color palette for macro regions — visually distinct, premium feel.
 const Map<String, Color> regionColors = {
-  'north_central':     Color(0xFF26A69A), // Bắc Trung Bộ — Teal
-  'northeast':         Color(0xFF66BB6A), // Đông Bắc — Emerald
-  'northwest':         Color(0xFF26C6DA), // Tây Bắc — Cyan
-  'red_river_delta':   Color(0xFFEF5350), // ĐB Sông Hồng — Ruby
-  'south_central':     Color(0xFFFFA726), // Nam Trung Bộ — Amber
+  'north_central': Color(0xFF26A69A), // Bắc Trung Bộ — Teal
+  'northeast': Color(0xFF66BB6A), // Đông Bắc — Emerald
+  'northwest': Color(0xFF26C6DA), // Tây Bắc — Cyan
+  'red_river_delta': Color(0xFFEF5350), // ĐB Sông Hồng — Ruby
+  'south_central': Color(0xFFFFA726), // Nam Trung Bộ — Amber
   'central_highlands': Color(0xFFAB47BC), // Tây Nguyên — Purple
-  'southeast':         Color(0xFFFF7043), // Đông Nam Bộ — Coral
-  'mekong_delta':      Color(0xFF42A5F5), // ĐB Sông Cửu Long — Azure
+  'southeast': Color(0xFFFF7043), // Đông Nam Bộ — Coral
+  'mekong_delta': Color(0xFF42A5F5), // ĐB Sông Cửu Long — Azure
 };
 
 /// Human-readable names for macro regions.
 const Map<String, String> regionNames = {
-  'north_central':     'Bắc Trung Bộ',
-  'northeast':         'Đông Bắc',
-  'northwest':         'Tây Bắc',
-  'red_river_delta':   'Đồng bằng Sông Hồng',
-  'south_central':     'Nam Trung Bộ',
+  'north_central': 'Bắc Trung Bộ',
+  'northeast': 'Đông Bắc',
+  'northwest': 'Tây Bắc',
+  'red_river_delta': 'Đồng bằng Sông Hồng',
+  'south_central': 'Nam Trung Bộ',
   'central_highlands': 'Tây Nguyên',
-  'southeast':         'Đông Nam Bộ',
-  'mekong_delta':      'Đồng bằng Sông Cửu Long',
+  'southeast': 'Đông Nam Bộ',
+  'mekong_delta': 'Đồng bằng Sông Cửu Long',
 };
 
 Color colorForCategory(String cap) {
@@ -83,27 +83,27 @@ Color colorForUnit(AdminUnit unit, ColorMode colorMode) {
 /// - Selection callback
 /// - Zoom controls (+/−)
 class MapWidget extends StatefulWidget {
-  final List<AdminUnit> data;
+  final List<AdminUnit> provincesData;
+  final List<AdminUnit> communesData;
+  final String provincesAssetPath;
+  final String communesAssetPath;
+  final bool communesLoaded;
   final Set<String> activeFilters;
-  final int selectedIndex;
-  final ValueChanged<int> onSelectionChanged;
-  final ValueChanged<int?> onHover;
-  final String assetPath;
+  final ValueChanged<AdminUnit?> onSelectionChanged;
+  final ValueChanged<double>? onZoomChanged;
   final ColorMode colorMode;
-  final VoidCallback? onZoomIn;
-  final VoidCallback? onZoomOut;
 
   const MapWidget({
     super.key,
-    required this.data,
+    required this.provincesData,
+    required this.communesData,
+    required this.provincesAssetPath,
+    required this.communesAssetPath,
+    required this.communesLoaded,
     required this.activeFilters,
-    required this.selectedIndex,
     required this.onSelectionChanged,
-    required this.onHover,
-    required this.assetPath,
+    this.onZoomChanged,
     this.colorMode = ColorMode.byType,
-    this.onZoomIn,
-    this.onZoomOut,
   });
 
   @override
@@ -113,6 +113,9 @@ class MapWidget extends StatefulWidget {
 class _MapWidgetState extends State<MapWidget> {
   late MapZoomPanBehavior _zoomPanBehavior;
   bool _isMapReady = false;
+  bool _showCommunes = false;
+  Timer? _zoomTimer;
+  double _lastZoom = 0;
 
   @override
   void initState() {
@@ -123,18 +126,49 @@ class _MapWidgetState extends State<MapWidget> {
       enableDoubleTapZooming: true,
       enableMouseWheelZooming: true,
       zoomLevel: 4.5,
-      focalLatLng: const MapLatLng(15.0, 108.5), // Center to cover both mainland and islands
-      minZoomLevel: 3,
+      focalLatLng: const MapLatLng(
+        15.0,
+        108.5,
+      ), // Center to cover both mainland and islands
+      minZoomLevel: 1.0,
       maxZoomLevel: 15,
       showToolbar: false,
     );
+    _showCommunes = _shouldShowCommunes(_zoomPanBehavior.zoomLevel);
     _startReadyTimer();
+    // Poll zoom level periodically and notify parent when it changes.
+    _zoomTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+      final z = _zoomPanBehavior.zoomLevel;
+      final shouldShowCommunes = _shouldShowCommunes(z);
+      final zoomChanged = (z - _lastZoom).abs() > 0.05;
+
+      if (zoomChanged) {
+        _lastZoom = z;
+      }
+
+      if (shouldShowCommunes != _showCommunes && mounted) {
+        setState(() {
+          _showCommunes = shouldShowCommunes;
+        });
+      }
+
+      if (zoomChanged) {
+        widget.onZoomChanged?.call(z);
+      }
+    });
+  }
+
+  bool _shouldShowCommunes(double zoom) {
+    return widget.communesLoaded &&
+        widget.communesData.isNotEmpty &&
+        zoom >= 5.2;
   }
 
   @override
   void didUpdateWidget(MapWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.assetPath != widget.assetPath) {
+    if (oldWidget.provincesAssetPath != widget.provincesAssetPath ||
+        oldWidget.communesAssetPath != widget.communesAssetPath) {
       setState(() => _isMapReady = false);
       _startReadyTimer();
     }
@@ -148,17 +182,19 @@ class _MapWidgetState extends State<MapWidget> {
     });
   }
 
-  MapShapeSource _buildShapeSource() {
-    if (widget.colorMode == ColorMode.byRegion) {
-      return _buildRegionShapeSource();
-    }
-    return _buildTypeShapeSource();
+  @override
+  void dispose() {
+    _zoomTimer?.cancel();
+    super.dispose();
   }
 
-  MapShapeSource _buildTypeShapeSource() {
+  MapShapeSource _buildTypeShapeSourceFor(
+    List<AdminUnit> data,
+    String assetPath,
+  ) {
     final categories = widget.activeFilters.isNotEmpty
         ? widget.activeFilters
-        : widget.data.map((u) => u.capHanhChinh).toSet();
+        : data.map((u) => u.capHanhChinh).toSet();
 
     final colorMappers = categories.map((cap) {
       return MapColorMapper(
@@ -169,19 +205,20 @@ class _MapWidgetState extends State<MapWidget> {
     }).toList();
 
     return MapShapeSource.asset(
-      widget.assetPath,
+      assetPath,
       shapeDataField: 'ten',
-      dataCount: widget.data.length,
-      primaryValueMapper: (int index) => widget.data[index].ten,
-      shapeColorValueMapper: (int index) => widget.data[index].capHanhChinh,
+      dataCount: data.length,
+      primaryValueMapper: (int index) => data[index].ten,
+      shapeColorValueMapper: (int index) => data[index].capHanhChinh,
       shapeColorMappers: colorMappers,
     );
   }
 
-  MapShapeSource _buildRegionShapeSource() {
-    final regions = widget.data
-        .map((u) => u.macroRegion ?? 'unknown')
-        .toSet();
+  MapShapeSource _buildRegionShapeSourceFor(
+    List<AdminUnit> data,
+    String assetPath,
+  ) {
+    final regions = data.map((u) => u.macroRegion ?? 'unknown').toSet();
 
     final colorMappers = regions.map((region) {
       return MapColorMapper(
@@ -192,19 +229,20 @@ class _MapWidgetState extends State<MapWidget> {
     }).toList();
 
     return MapShapeSource.asset(
-      widget.assetPath,
+      assetPath,
       shapeDataField: 'ten',
-      dataCount: widget.data.length,
-      primaryValueMapper: (int index) => widget.data[index].ten,
+      dataCount: data.length,
+      primaryValueMapper: (int index) => data[index].ten,
       shapeColorValueMapper: (int index) =>
-          widget.data[index].macroRegion ?? 'unknown',
+          data[index].macroRegion ?? 'unknown',
       shapeColorMappers: colorMappers,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    if (widget.data.isEmpty) {
+    // If both datasets are empty, show empty state.
+    if (widget.provincesData.isEmpty && widget.communesData.isEmpty) {
       return const Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -234,68 +272,96 @@ class _MapWidgetState extends State<MapWidget> {
             ),
             child: SfMaps(
               layers: [
+                // Provinces layer (always present)
                 MapShapeLayer(
-                  source: _buildShapeSource(),
+                  source: widget.colorMode == ColorMode.byRegion
+                      ? _buildRegionShapeSourceFor(
+                          widget.provincesData,
+                          widget.provincesAssetPath,
+                        )
+                      : _buildTypeShapeSourceFor(
+                          widget.provincesData,
+                          widget.provincesAssetPath,
+                        ),
                   zoomPanBehavior: _zoomPanBehavior,
-                strokeColor: Colors.white.withValues(alpha: 0.25),
-                strokeWidth: 0.8,
-                selectedIndex: widget.selectedIndex,
-                selectionSettings: const MapSelectionSettings(
-                  color: Color(0xBB00E5FF),
-                  strokeColor: Color(0xFF00E5FF),
-                  strokeWidth: 3.0,
-                ),
-                onSelectionChanged: (int index) {
-                  widget.onSelectionChanged(index);
-                },
-                initialMarkersCount: 2,
-                markerBuilder: (BuildContext context, int index) {
-                  if (index == 0) {
-                    return MapMarker(
-                      latitude: 16.5,
-                      longitude: 111.8,
-                      child: const _IslandMarker(label: 'Quần đảo Hoàng Sa\n(TP. Đà Nẵng)'),
-                    );
-                  } else {
-                    return MapMarker(
-                      latitude: 10.0,
-                      longitude: 114.0,
-                      child: const _IslandMarker(label: 'Quần đảo Trường Sa\n(Tỉnh Khánh Hòa)'),
-                    );
-                  }
-                },
-                shapeTooltipBuilder: (BuildContext context, int index) {
-                  if (index < 0 || index >= widget.data.length) {
-                    return const SizedBox.shrink();
-                  }
-                  final unit = widget.data[index];
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    widget.onHover(index);
-                  });
-                  return _EnhancedTooltip(
-                    unit: unit,
-                    colorMode: widget.colorMode,
-                  );
-                },
-                tooltipSettings: const MapTooltipSettings(
-                  color: Color(0xF01B2838),
-                  strokeColor: Color(0xFF00E5FF),
-                  strokeWidth: 1.0,
-                ),
-                legend: MapLegend(
-                  MapElement.shape,
-                  position: MapLegendPosition.bottom,
-                  overflowMode: MapLegendOverflowMode.wrap,
-                  padding: const EdgeInsets.all(12),
-                  textStyle: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 11,
+                  strokeColor: Colors.white.withValues(alpha: 0.22),
+                  strokeWidth: 0.8,
+                  selectedIndex: -1,
+                  selectionSettings: const MapSelectionSettings(
+                    color: Color(0xBB00E5FF),
+                    strokeColor: Color(0xFF00E5FF),
+                    strokeWidth: 3.0,
+                  ),
+                  onSelectionChanged: (int index) {
+                    if (!_showCommunes &&
+                        index >= 0 &&
+                        index < widget.provincesData.length) {
+                      widget.onSelectionChanged(widget.provincesData[index]);
+                    }
+                  },
+                  initialMarkersCount: _showCommunes ? 0 : 2,
+                  markerBuilder: (BuildContext context, int index) {
+                    if (index == 0) {
+                      return MapMarker(
+                        latitude: 16.5,
+                        longitude: 111.8,
+                        child: const _IslandMarker(
+                          label: 'Quần đảo Hoàng Sa\n(TP. Đà Nẵng)',
+                        ),
+                      );
+                    } else {
+                      return MapMarker(
+                        latitude: 10.0,
+                        longitude: 114.0,
+                        child: const _IslandMarker(
+                          label: 'Quần đảo Trường Sa\n(Tỉnh Khánh Hòa)',
+                        ),
+                      );
+                    }
+                  },
+                  legend: MapLegend(
+                    MapElement.shape,
+                    position: MapLegendPosition.bottom,
+                    overflowMode: MapLegendOverflowMode.wrap,
+                    padding: const EdgeInsets.all(12),
+                    textStyle: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 11,
+                    ),
                   ),
                 ),
-              ),
-            ],
+
+                // Communes layer (only when zoomed in and data available)
+                if (_showCommunes)
+                  MapShapeLayer(
+                    source: widget.colorMode == ColorMode.byRegion
+                        ? _buildRegionShapeSourceFor(
+                            widget.communesData,
+                            widget.communesAssetPath,
+                          )
+                        : _buildTypeShapeSourceFor(
+                            widget.communesData,
+                            widget.communesAssetPath,
+                          ),
+                    zoomPanBehavior: _zoomPanBehavior,
+                    strokeColor: Colors.white.withValues(alpha: 0.55),
+                    strokeWidth: 1.0,
+                    selectedIndex: -1,
+                    selectionSettings: const MapSelectionSettings(
+                      color: Color(0xBB00E5FF),
+                      strokeColor: Color(0xFF00E5FF),
+                      strokeWidth: 2.5,
+                    ),
+                    onSelectionChanged: (int index) {
+                      if (index >= 0 && index < widget.communesData.length) {
+                        widget.onSelectionChanged(widget.communesData[index]);
+                      }
+                    },
+                    initialMarkersCount: 0,
+                  ),
+              ],
+            ),
           ),
-        ),
         ),
 
         // Zoom controls
@@ -304,9 +370,7 @@ class _MapWidgetState extends State<MapWidget> {
           bottom: 100,
           child: AbsorbPointer(
             absorbing: !_isMapReady,
-            child: _ZoomControls(
-              zoomPanBehavior: _zoomPanBehavior,
-            ),
+            child: _ZoomControls(zoomPanBehavior: _zoomPanBehavior),
           ),
         ),
       ],
@@ -319,9 +383,7 @@ class _MapWidgetState extends State<MapWidget> {
 class _ZoomControls extends StatefulWidget {
   final MapZoomPanBehavior zoomPanBehavior;
 
-  const _ZoomControls({
-    required this.zoomPanBehavior,
-  });
+  const _ZoomControls({required this.zoomPanBehavior});
 
   @override
   State<_ZoomControls> createState() => _ZoomControlsState();
@@ -330,16 +392,19 @@ class _ZoomControls extends StatefulWidget {
 class _ZoomControlsState extends State<_ZoomControls> {
   Timer? _timer;
   double _lastZoom = 0;
+  double _currentZoomLevel = 0;
 
   @override
   void initState() {
     super.initState();
     _lastZoom = widget.zoomPanBehavior.zoomLevel;
+    _currentZoomLevel = _lastZoom;
     _timer = Timer.periodic(const Duration(milliseconds: 150), (_) {
       final currentZoom = widget.zoomPanBehavior.zoomLevel;
       if (currentZoom != _lastZoom && mounted) {
         setState(() {
           _lastZoom = currentZoom;
+          _currentZoomLevel = currentZoom;
         });
       }
     });
@@ -351,28 +416,31 @@ class _ZoomControlsState extends State<_ZoomControls> {
     super.dispose();
   }
 
-  void _zoomIn() {
-    final current = widget.zoomPanBehavior.zoomLevel;
-    if (current < 15) {
-      widget.zoomPanBehavior.zoomLevel = (current + 1).clamp(3.0, 15.0);
+  void _commitZoomLevel(double value) {
+    final clamped = value.clamp(1.0, 15.0);
+    setState(() {
+      _currentZoomLevel = clamped;
+    });
+
+    try {
+      widget.zoomPanBehavior.zoomLevel = clamped;
       _lastZoom = widget.zoomPanBehavior.zoomLevel;
-      setState(() {});
+    } catch (_) {
+      // Syncfusion can throw on web while the map layer is still resolving.
     }
   }
 
+  void _zoomIn() {
+    _commitZoomLevel(_currentZoomLevel + 1);
+  }
+
   void _zoomOut() {
-    final current = widget.zoomPanBehavior.zoomLevel;
-    if (current > 3) {
-      widget.zoomPanBehavior.zoomLevel = (current - 1).clamp(3.0, 15.0);
-      _lastZoom = widget.zoomPanBehavior.zoomLevel;
-      setState(() {});
-    }
+    _commitZoomLevel(_currentZoomLevel - 1);
   }
 
   @override
   Widget build(BuildContext context) {
-    final currentZoom = widget.zoomPanBehavior.zoomLevel;
-    final displayZoom = currentZoom.toStringAsFixed(1);
+    final displayZoom = _currentZoomLevel.toStringAsFixed(1);
 
     return Container(
       decoration: BoxDecoration(
@@ -395,9 +463,9 @@ class _ZoomControlsState extends State<_ZoomControls> {
             onTap: _zoomIn,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
           ),
-          
+
           Container(height: 1, width: 36, color: const Color(0xFF2A3F54)),
-          
+
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8.0),
             child: SizedBox(
@@ -410,25 +478,32 @@ class _ZoomControlsState extends State<_ZoomControls> {
                     activeTrackColor: const Color(0xFF00E5FF),
                     inactiveTrackColor: const Color(0xFF2A3F54),
                     thumbColor: Colors.white,
-                    overlayColor: const Color(0xFF00E5FF).withValues(alpha: 0.2),
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+                    overlayColor: const Color(
+                      0xFF00E5FF,
+                    ).withValues(alpha: 0.2),
+                    thumbShape: const RoundSliderThumbShape(
+                      enabledThumbRadius: 6,
+                    ),
+                    overlayShape: const RoundSliderOverlayShape(
+                      overlayRadius: 14,
+                    ),
                   ),
                   child: Slider(
-                    value: currentZoom,
-                    min: 3,
+                    value: _currentZoomLevel,
+                    min: 1,
                     max: 15,
                     onChanged: (value) {
                       setState(() {
-                        widget.zoomPanBehavior.zoomLevel = value;
+                        _currentZoomLevel = value;
                       });
                     },
+                    onChangeEnd: _commitZoomLevel,
                   ),
                 ),
               ),
             ),
           ),
-          
+
           Padding(
             padding: const EdgeInsets.only(bottom: 8.0),
             child: Text(
@@ -442,11 +517,13 @@ class _ZoomControlsState extends State<_ZoomControls> {
           ),
 
           Container(height: 1, width: 36, color: const Color(0xFF2A3F54)),
-          
+
           _ZoomButton(
             icon: Icons.remove_rounded,
             onTap: _zoomOut,
-            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(11)),
+            borderRadius: const BorderRadius.vertical(
+              bottom: Radius.circular(11),
+            ),
           ),
         ],
       ),
@@ -489,10 +566,7 @@ class _EnhancedTooltip extends StatelessWidget {
   final AdminUnit unit;
   final ColorMode colorMode;
 
-  const _EnhancedTooltip({
-    required this.unit,
-    required this.colorMode,
-  });
+  const _EnhancedTooltip({required this.unit, required this.colorMode});
 
   @override
   Widget build(BuildContext context) {
@@ -510,10 +584,7 @@ class _EnhancedTooltip extends StatelessWidget {
             height: 4,
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [
-                  mainColor,
-                  mainColor.withValues(alpha: 0.3),
-                ],
+                colors: [mainColor, mainColor.withValues(alpha: 0.3)],
               ),
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(4),
@@ -557,10 +628,7 @@ class _EnhancedTooltip extends StatelessWidget {
                     ),
                     // Region badge
                     if (unit.macroRegion != null)
-                      _badge(
-                        regionName,
-                        colorForRegion(unit.macroRegion),
-                      ),
+                      _badge(regionName, colorForRegion(unit.macroRegion)),
                   ],
                 ),
 
@@ -674,10 +742,7 @@ class _EnhancedTooltip extends StatelessWidget {
         Flexible(
           child: Text(
             text,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 11,
-            ),
+            style: const TextStyle(color: Colors.white70, fontSize: 11),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
@@ -694,10 +759,9 @@ class _EnhancedTooltip extends StatelessWidget {
     return 'Sáp nhập từ ${parts.length} đơn vị';
   }
 
-  String _fmt(double v) => v.toStringAsFixed(1).replaceAllMapped(
-    RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
-    (m) => '${m[1]},',
-  );
+  String _fmt(double v) => v
+      .toStringAsFixed(1)
+      .replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
 
   String _fmtInt(int v) => v.toString().replaceAllMapped(
     RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
@@ -744,10 +808,7 @@ class _IslandMarker extends StatelessWidget {
             fontSize: 10,
             fontWeight: FontWeight.w600,
             shadows: [
-              Shadow(
-                color: Colors.black.withValues(alpha: 0.8),
-                blurRadius: 4,
-              ),
+              Shadow(color: Colors.black.withValues(alpha: 0.8), blurRadius: 4),
             ],
           ),
         ),
@@ -755,5 +816,3 @@ class _IslandMarker extends StatelessWidget {
     );
   }
 }
-
-

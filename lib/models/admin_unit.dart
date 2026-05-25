@@ -77,8 +77,8 @@ class AdminUnit {
     // macro_region is empty for islands, we can infer from admin_post_merger
     String? macroRegion = parseStr(json['macro_region']);
     if (json['is_archipelago'] == true) {
-      if (ten.contains('Hoàng Sa')) macroRegion = 'south_central'; // Đà Nẵng
-      if (ten.contains('Trường Sa')) macroRegion = 'south_central'; // Khánh Hòa
+      if (ten.contains('Hoàng Sa')) macroRegion = 'central_coast';
+      if (ten.contains('Trường Sa')) macroRegion = 'central_coast';
     }
 
     return AdminUnit(

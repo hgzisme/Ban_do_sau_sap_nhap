@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/admin_unit.dart';
-import 'map_widget.dart' show colorForCategory, colorForRegion, regionDisplayName;
+import 'map_style.dart' show colorForCategory, colorForRegion, regionDisplayName;
 
 /// Panel showing detailed info for a selected/hovered administrative unit.
 ///
@@ -8,8 +8,9 @@ import 'map_widget.dart' show colorForCategory, colorForRegion, regionDisplayNam
 /// name, type, area, population, density, capital, decree, predecessors.
 class DetailPanelWidget extends StatelessWidget {
   final AdminUnit? unit;
+  final VoidCallback? onClose;
 
-  const DetailPanelWidget({super.key, this.unit});
+  const DetailPanelWidget({super.key, this.unit, this.onClose});
 
   @override
   Widget build(BuildContext context) {
@@ -57,14 +58,33 @@ class DetailPanelWidget extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
-            const Row(
-              children: [
-                Icon(Icons.info_outline_rounded, color: Color(0xFF00E5FF), size: 16),
-                SizedBox(width: 6),
-                Text('CHI TIẾT', style: TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.8)),
-              ],
-            ),
+              // Header with close button
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: const [
+                      Icon(Icons.info_outline_rounded, color: Color(0xFF00E5FF), size: 16),
+                      SizedBox(width: 6),
+                      Text('CHI TIẾT', style: TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.8)),
+                    ],
+                  ),
+                  // Close button
+                  if (onClose != null)
+                    GestureDetector(
+                      onTap: onClose,
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.04),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.close_rounded, size: 18, color: Colors.white70),
+                      ),
+                    ),
+                ],
+              ),
             const SizedBox(height: 14),
 
             // Name

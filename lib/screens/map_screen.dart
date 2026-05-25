@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import '../models/admin_unit.dart';
+import '../models/map_detail_level.dart';
+import '../models/map_focus_request.dart';
+import '../models/search_result.dart';
 import '../repositories/map_repository.dart';
-import '../widgets/map_widget.dart';
-import '../widgets/filter_widget.dart';
-import '../widgets/global_stats_widget.dart';
 import '../widgets/detail_panel_widget.dart';
+import '../widgets/filter_widget.dart';
+import '../widgets/map_lod_widget.dart';
+import '../widgets/map_search_overlay.dart';
 
-/// Main screen composing the sidebar filter, map, stats dashboard, and detail panel.
-///
-/// Manages dual-layer state (provinces / communes), category filtering,
-/// and color mode switching.
+/// Main screen composing the sidebar filter, map, and detail panel.
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
 
@@ -21,14 +21,14 @@ class _MapScreenState extends State<MapScreen> {
   final MapRepository _repo = MapRepository();
 
   bool _loading = true;
-  bool _isLoadingLayer = false;
-  List<AdminUnit> _filteredUnits = [];
-  Set<String> _allCategories = {};
-  Set<String> _activeCategories = {};
-  int _selectedIndex = -1;
   AdminUnit? _selectedUnit;
-  AdminUnit? _hoveredUnit;
   ColorMode _colorMode = ColorMode.byType;
+  MapFocusRequest? _focusRequest;
+  int _focusToken = 0;
+  MapDetailState _mapDetailState = MapDetailState(
+    level: MapDetailLevel.provinces,
+    visibleUnitCount: 0,
+  );
 
   @override
   void initState() {
@@ -37,34 +37,14 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Future<void> _loadData() async {
-    final units = await _repo.loadData();
-    final cats = _repo.getAllCategories();
+    await _repo.loadData();
+    await _repo.preloadCommunes();
     setState(() {
-      _allCategories = cats;
-      _activeCategories = Set.from(cats); // All active by default
-      _filteredUnits = units;
       _loading = false;
-    });
-  }
-
-  Future<void> _onLayerChanged(MapLayer layer) async {
-    if (layer == _repo.activeLayer) return;
-
-    setState(() {
-      _isLoadingLayer = true;
-      _selectedIndex = -1;
-      _selectedUnit = null;
-      _hoveredUnit = null;
-    });
-
-    await _repo.switchLayer(layer);
-    final cats = _repo.getAllCategories();
-
-    setState(() {
-      _allCategories = cats;
-      _activeCategories = Set.from(cats);
-      _filteredUnits = _repo.activeUnits;
-      _isLoadingLayer = false;
+      _mapDetailState = MapDetailState(
+        level: MapDetailLevel.provinces,
+        visibleUnitCount: _repo.provinces.length,
+      );
     });
   }
 
@@ -72,56 +52,32 @@ class _MapScreenState extends State<MapScreen> {
     setState(() => _colorMode = mode);
   }
 
-  void _onToggleCategory(String cat) {
+  void _onToggleCategory(String cat) {}
+
+  void _onSelectAll() {}
+
+  void _onDeselectAll() {}
+
+  void _onSelectionChanged(AdminUnit? unit) {
+    setState(() => _selectedUnit = unit);
+  }
+
+  void _onDetailStateChanged(MapDetailState state) {
+    setState(() => _mapDetailState = state);
+  }
+
+  void _closeDetail() {
+    setState(() => _selectedUnit = null);
+  }
+
+  void _onSearchResult(SearchResult result) {
     setState(() {
-      if (_activeCategories.contains(cat)) {
-        _activeCategories.remove(cat);
-      } else {
-        _activeCategories.add(cat);
-      }
-      _updateFiltered();
+      _selectedUnit = result.unit;
+      _focusRequest = MapFocusRequest(
+        unit: result.unit,
+        token: ++_focusToken,
+      );
     });
-  }
-
-  void _onSelectAll() {
-    setState(() {
-      _activeCategories = Set.from(_allCategories);
-      _updateFiltered();
-    });
-  }
-
-  void _onDeselectAll() {
-    setState(() {
-      _activeCategories.clear();
-      _updateFiltered();
-    });
-  }
-
-  void _updateFiltered() {
-    _filteredUnits = _repo.getByCategories(_activeCategories);
-    _selectedIndex = -1;
-    _selectedUnit = null;
-  }
-
-  void _onSelectionChanged(int index) {
-    setState(() {
-      if (index < 0 || index >= _filteredUnits.length) {
-        _selectedIndex = -1;
-        _selectedUnit = null;
-      } else {
-        _selectedIndex = index;
-        _selectedUnit = _filteredUnits[index];
-      }
-    });
-  }
-
-  void _onHover(int? index) {
-    if (index != null && index >= 0 && index < _filteredUnits.length) {
-      final unit = _filteredUnits[index];
-      if (_hoveredUnit?.ten != unit.ten) {
-        setState(() => _hoveredUnit = unit);
-      }
-    }
   }
 
   @override
@@ -145,73 +101,43 @@ class _MapScreenState extends State<MapScreen> {
       );
     }
 
-    // Determine which unit to show in detail panel (selected overrides hovered)
-    final detailUnit = _selectedUnit ?? _hoveredUnit;
+    final detailUnit = _selectedUnit;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F1923),
       body: Row(
         children: [
-          // ── LEFT SIDEBAR ──
           FilterWidget(
-            allCategories: _allCategories,
-            activeCategories: _activeCategories,
+            allCategories: const {},
+            activeCategories: const {},
             onToggle: _onToggleCategory,
             onSelectAll: _onSelectAll,
             onDeselectAll: _onDeselectAll,
-            activeLayer: _repo.activeLayer,
-            onLayerChanged: _onLayerChanged,
-            isLoadingLayer: _isLoadingLayer,
             colorMode: _colorMode,
             onColorModeChanged: _onColorModeChanged,
           ),
-
-          // ── MAP + OVERLAYS ──
           Expanded(
             child: Stack(
               children: [
-                // Map
                 Container(
-                  color: const Color(0xFF0A1628),
-                  child: _isLoadingLayer
-                      ? const Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _LoadingSpinner(),
-                              SizedBox(height: 20),
-                              Text(
-                                'Đang tải dữ liệu cấp Phường/Xã...\n(3.321 đơn vị — đang xử lý trong nền)',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(color: Colors.white54, fontSize: 13),
-                              ),
-                            ],
-                          ),
-                        )
-                      : MapWidget(
-                          data: _filteredUnits,
-                          activeFilters: _activeCategories,
-                          selectedIndex: _selectedIndex,
-                          onSelectionChanged: _onSelectionChanged,
-                          onHover: _onHover,
-                          assetPath: _repo.activeAssetPath,
-                          colorMode: _colorMode,
-                        ),
+                  color: const Color(0xFF0F1923),
+                  child: MapLodWidget(
+                    repository: _repo,
+                    onSelectionChanged: _onSelectionChanged,
+                    onDetailStateChanged: _onDetailStateChanged,
+                    colorMode: _colorMode,
+                    focusRequest: _focusRequest,
+                  ),
                 ),
-
-                // (Title bar was moved to MainScreen)
-
-                // Top-right: Layer indicator
                 Positioned(
                   top: 16,
-                  right: 16,
-                  child: _buildLayerBadge(),
+                  left: 16,
+                  child: MapSearchOverlay(
+                    repository: _repo,
+                    onResultSelected: _onSearchResult,
+                  ),
                 ),
-
-                // (Global stats moved to StatsScreen)
-
-
-                // Bottom-left: Detail panel
+                Positioned(top: 16, right: 16, child: _buildLayerBadge()),
                 Positioned(
                   bottom: 16,
                   left: 16,
@@ -223,9 +149,14 @@ class _MapScreenState extends State<MapScreen> {
                       decoration: BoxDecoration(
                         color: const Color(0xCC1B2838),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.08),
+                        ),
                       ),
-                      child: DetailPanelWidget(unit: detailUnit),
+                      child: DetailPanelWidget(
+                        unit: detailUnit,
+                        onClose: _closeDetail,
+                      ),
                     ),
                   ),
                 ),
@@ -238,8 +169,13 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Widget _buildLayerBadge() {
-    final isProvinces = _repo.activeLayer == MapLayer.provinces;
-    final layerColor = isProvinces ? const Color(0xFF4ECDC4) : const Color(0xFFA29BFE);
+    final isProvince = _mapDetailState.level == MapDetailLevel.provinces;
+    final layerColor =
+        isProvince ? const Color(0xFF4ECDC4) : const Color(0xFFA29BFE);
+    final count = _mapDetailState.visibleUnitCount;
+    final label = isProvince
+        ? 'Cấp Tỉnh/TP ($count đơn vị)'
+        : 'Cấp Phường/Xã ($count trong vùng)';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -252,28 +188,36 @@ class _MapScreenState extends State<MapScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            isProvinces ? Icons.map_rounded : Icons.location_city_rounded,
+            isProvince ? Icons.map_rounded : Icons.location_city_rounded,
             size: 16,
             color: layerColor,
           ),
           const SizedBox(width: 6),
           Text(
-            isProvinces
-                ? 'Cấp Tỉnh/TP (${_filteredUnits.length} đơn vị)'
-                : 'Cấp Phường/Xã (${_filteredUnits.length} đơn vị)',
+            label,
             style: TextStyle(
               color: layerColor,
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
           ),
+          if (_mapDetailState.isRefreshing) ...[
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: layerColor,
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 }
 
-/// Premium loading spinner with pulsing animation.
 class _LoadingSpinner extends StatefulWidget {
   const _LoadingSpinner();
 
