@@ -21,7 +21,7 @@ class _MapScreenState extends State<MapScreen> {
   final MapRepository _repo = MapRepository();
 
   bool _loading = true;
-  AdminUnit? _selectedUnit;
+  final ValueNotifier<AdminUnit?> _selectedUnit = ValueNotifier(null);
   ColorMode _colorMode = ColorMode.byType;
   MapFocusRequest? _focusRequest;
   int _focusToken = 0;
@@ -59,7 +59,7 @@ class _MapScreenState extends State<MapScreen> {
   void _onDeselectAll() {}
 
   void _onSelectionChanged(AdminUnit? unit) {
-    setState(() => _selectedUnit = unit);
+    _selectedUnit.value = unit;
   }
 
   void _onDetailStateChanged(MapDetailState state) {
@@ -67,12 +67,12 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _closeDetail() {
-    setState(() => _selectedUnit = null);
+    _selectedUnit.value = null;
   }
 
   void _onSearchResult(SearchResult result) {
+    _selectedUnit.value = result.unit;
     setState(() {
-      _selectedUnit = result.unit;
       _focusRequest = MapFocusRequest(
         unit: result.unit,
         token: ++_focusToken,
@@ -100,8 +100,6 @@ class _MapScreenState extends State<MapScreen> {
         ),
       );
     }
-
-    final detailUnit = _selectedUnit;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F1923),
@@ -153,9 +151,14 @@ class _MapScreenState extends State<MapScreen> {
                           color: Colors.white.withValues(alpha: 0.08),
                         ),
                       ),
-                      child: DetailPanelWidget(
-                        unit: detailUnit,
-                        onClose: _closeDetail,
+                      child: ValueListenableBuilder<AdminUnit?>(
+                        valueListenable: _selectedUnit,
+                        builder: (context, unit, child) {
+                          return DetailPanelWidget(
+                            unit: unit,
+                            onClose: _closeDetail,
+                          );
+                        },
                       ),
                     ),
                   ),

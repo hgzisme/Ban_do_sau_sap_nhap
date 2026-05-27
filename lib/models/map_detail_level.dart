@@ -6,7 +6,7 @@ enum MapDetailLevel {
 class MapZoomThresholds {
   static const double defaultZoomLevel = 1.0;
   static const double minZoomLevel = 1.0;
-  static const double maxZoomLevel = 15.0;
+  static const double maxZoomLevel = 9.0;
   static const double zoomInToCommunes = 5.5;
   static const double zoomOutToProvinces = 4.8;
   static const double focusZoomProvince = 5.0;

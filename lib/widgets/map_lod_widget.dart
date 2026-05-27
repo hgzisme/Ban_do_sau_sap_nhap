@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_core/theme.dart';
@@ -49,13 +50,16 @@ class _MapLodWidgetState extends State<MapLodWidget> {
 
   Set<String> _visibleParentMas = {};
   List<AdminUnit> _visibleCommunes = [];
-  String? _communeGeoJson;
+  Uint8List? _communeGeoJsonBytes;
   bool _isRefreshingCommunes = false;
 
   Timer? _gestureDebounce;
   MapShapeSource? _provinceSourceCache;
   final Map<String, MapShapeSource> _communeSourceCache = {};
   int? _lastAppliedFocusToken;
+
+  bool _isPointerDown = false;
+  bool _pendingGestureSettled = false;
 
   List<AdminUnit> get _provinces => widget.repository.provinces;
 
@@ -93,10 +97,6 @@ class _MapLodWidgetState extends State<MapLodWidget> {
     }
     if (details.newVisibleBounds != null) {
       _cameraVisibleBounds = details.newVisibleBounds;
-    }
-    if (details.focalLatLng != null) {
-      _cameraFocal = details.focalLatLng;
-    } else if (details.newVisibleBounds != null) {
       _cameraFocal = _focalFromBounds(details.newVisibleBounds!);
     }
   }
@@ -108,20 +108,13 @@ class _MapLodWidgetState extends State<MapLodWidget> {
     }
     if (details.newVisibleBounds != null) {
       _cameraVisibleBounds = details.newVisibleBounds;
-    }
-    if (details.focalLatLng != null) {
-      _cameraFocal = details.focalLatLng;
-    } else if (details.newVisibleBounds != null) {
       _cameraFocal = _focalFromBounds(details.newVisibleBounds!);
     }
   }
 
   void _refreshCameraFromController() {
     try {
-      _zoomLevel = _clampZoom(_zoomPanBehavior.zoomLevel);
-      if (_zoomPanBehavior.zoomLevel != _zoomLevel) {
-        _zoomPanBehavior.zoomLevel = _zoomLevel;
-      }
+      _zoomLevel = _zoomPanBehavior.zoomLevel;
       _zoomNotifier.value = _zoomLevel;
     } catch (_) {}
 
@@ -136,6 +129,8 @@ class _MapLodWidgetState extends State<MapLodWidget> {
       (viewport.south + viewport.north) / 2,
       (viewport.west + viewport.east) / 2,
     );
+
+
   }
 
   GeoBounds? _computeViewportBoundsFromPixels() {
@@ -198,7 +193,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
     );
   }
 
-  ({Set<String> parentMas, List<AdminUnit> communes, String geoJson})?
+  ({Set<String> parentMas, List<AdminUnit> communes, Uint8List geoJsonBytes})?
   _computeCommuneViewportData() {
     final parentMas = _resolveProvinceMasForCommunes();
     if (parentMas.isEmpty) return null;
@@ -206,7 +201,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
     return (
       parentMas: parentMas,
       communes: widget.repository.communesForProvinces(parentMas),
-      geoJson: widget.repository.buildCommuneGeoJson(parentMas),
+      geoJsonBytes: widget.repository.buildCommuneGeoJsonBytes(parentMas),
     );
   }
 
@@ -221,7 +216,6 @@ class _MapLodWidgetState extends State<MapLodWidget> {
       enableDoubleTapZooming: true,
       enableMouseWheelZooming: true,
       zoomLevel: _zoomLevel,
-      focalLatLng: const MapLatLng(15.0, 108.5),
       minZoomLevel: MapZoomThresholds.minZoomLevel,
       maxZoomLevel: MapZoomThresholds.maxZoomLevel,
       showToolbar: false,
@@ -242,12 +236,15 @@ class _MapLodWidgetState extends State<MapLodWidget> {
     }
     if (widget.focusRequest != null &&
         widget.focusRequest!.token != _lastAppliedFocusToken) {
-      _applyFocusRequest(widget.focusRequest!);
+      final request = widget.focusRequest!;
+      _lastAppliedFocusToken = request.token;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _applyFocusRequest(request);
+      });
     }
   }
 
   void _applyFocusRequest(MapFocusRequest request) {
-    _lastAppliedFocusToken = request.token;
     final unit = request.unit;
     final level = widget.repository.levelForUnit(unit);
     final bounds = widget.repository.boundsForUnit(unit);
@@ -269,7 +266,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
         _detailLevel = MapDetailLevel.communes;
         _visibleParentMas = parentMas;
         _visibleCommunes = widget.repository.communesForProvinces(parentMas);
-        _communeGeoJson = widget.repository.buildCommuneGeoJson(parentMas);
+        _communeGeoJsonBytes = widget.repository.buildCommuneGeoJsonBytes(parentMas);
         _isRefreshingCommunes = false;
       });
       _notifyDetailState();
@@ -278,7 +275,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
         _detailLevel = MapDetailLevel.provinces;
         _visibleParentMas = {};
         _visibleCommunes = [];
-        _communeGeoJson = null;
+        _communeGeoJsonBytes = null;
         _isRefreshingCommunes = false;
       });
       _notifyDetailState();
@@ -334,6 +331,12 @@ class _MapLodWidgetState extends State<MapLodWidget> {
   }
 
   void _onGestureSettled() {
+    if (_isPointerDown) {
+      _pendingGestureSettled = true;
+      return;
+    }
+    _pendingGestureSettled = false;
+
     if (!widget.repository.communesIndexed) return;
 
     _refreshCameraFromController();
@@ -358,7 +361,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
         _detailLevel = MapDetailLevel.communes;
         _visibleParentMas = data.parentMas;
         _visibleCommunes = data.communes;
-        _communeGeoJson = data.geoJson;
+        _communeGeoJsonBytes = data.geoJsonBytes;
         _isRefreshingCommunes = false;
       });
       widget.onSelectionChanged(null);
@@ -372,7 +375,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
       _detailLevel = MapDetailLevel.provinces;
       _visibleParentMas = {};
       _visibleCommunes = [];
-      _communeGeoJson = null;
+      _communeGeoJsonBytes = null;
       _isRefreshingCommunes = false;
     });
     widget.onSelectionChanged(null);
@@ -430,7 +433,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
     _provinceSourceCacheKey = cacheKey;
     _provinceSourceCache = _buildMemoryShapeSource(
       _provinces,
-      widget.repository.provinceGeoJson,
+      widget.repository.provinceGeoJsonBytes,
     );
     return _provinceSourceCache!;
   }
@@ -438,25 +441,32 @@ class _MapLodWidgetState extends State<MapLodWidget> {
   String? _provinceSourceCacheKey;
 
   MapShapeSource _buildCommuneSource() {
+    if (_visibleCommunes.isEmpty || _communeGeoJsonBytes == null) {
+      // Provide a tiny invisible dummy polygon inside Vietnam to prevent Syncfusion bounds calculation crashes on empty layers
+      const dummyGeoJson = '{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[105.0,15.0],[105.0,15.0001],[105.0001,15.0001],[105.0,15.0]]]},"properties":{}}]}';
+      return MapShapeSource.memory(
+        Uint8List.fromList(utf8.encode(dummyGeoJson)),
+      );
+    }
+
     final cacheKey =
         '${widget.colorMode.name}:${widget.repository.cacheKeyForProvinces(_visibleParentMas)}';
     final cached = _communeSourceCache[cacheKey];
     if (cached != null) return cached;
 
-    final geoJson = _communeGeoJson ?? '{"type":"FeatureCollection","features":[]}';
-    final source = _buildMemoryShapeSource(_visibleCommunes, geoJson);
+    final source = _buildMemoryShapeSource(_visibleCommunes, _communeGeoJsonBytes!);
     _communeSourceCache[cacheKey] = source;
     return source;
   }
 
   MapShapeSource _buildMemoryShapeSource(
     List<AdminUnit> data,
-    String geoJson,
+    Uint8List geoJsonBytes,
   ) {
     if (widget.colorMode == ColorMode.byRegion) {
-      return _buildRegionMemorySource(data, geoJson);
+      return _buildRegionMemorySource(data, geoJsonBytes);
     }
-    return _buildTypeMemorySource(data, geoJson);
+    return _buildTypeMemorySource(data, geoJsonBytes);
   }
 
   List<MapColorMapper> _typeColorMappers(List<AdminUnit> data) {
@@ -487,10 +497,10 @@ class _MapLodWidgetState extends State<MapLodWidget> {
 
   MapShapeSource _buildTypeMemorySource(
     List<AdminUnit> data,
-    String geoJson,
+    Uint8List geoJsonBytes,
   ) {
     return MapShapeSource.memory(
-      utf8.encode(geoJson),
+      geoJsonBytes,
       shapeDataField: 'ten',
       dataCount: data.length,
       primaryValueMapper: (int index) => data[index].ten,
@@ -501,10 +511,10 @@ class _MapLodWidgetState extends State<MapLodWidget> {
 
   MapShapeSource _buildRegionMemorySource(
     List<AdminUnit> data,
-    String geoJson,
+    Uint8List geoJsonBytes,
   ) {
     return MapShapeSource.memory(
-      utf8.encode(geoJson),
+      geoJsonBytes,
       shapeDataField: 'ten',
       dataCount: data.length,
       primaryValueMapper: (int index) => data[index].ten,
@@ -550,7 +560,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
 
     final showCommuneOverlay = _detailLevel == MapDetailLevel.communes &&
         _visibleCommunes.isNotEmpty &&
-        _communeGeoJson != null;
+        _communeGeoJsonBytes != null;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -560,8 +570,22 @@ class _MapLodWidgetState extends State<MapLodWidget> {
           fit: StackFit.expand,
           children: [
             Positioned.fill(
-              child: SfMapsTheme(
-                data: SfMapsThemeData(
+              child: Listener(
+                onPointerDown: (_) => _isPointerDown = true,
+                onPointerUp: (_) {
+                  _isPointerDown = false;
+                  if (_pendingGestureSettled && mounted) {
+                    _onGestureSettled();
+                  }
+                },
+                onPointerCancel: (_) {
+                  _isPointerDown = false;
+                  if (_pendingGestureSettled && mounted) {
+                    _onGestureSettled();
+                  }
+                },
+                child: SfMapsTheme(
+                  data: SfMapsThemeData(
                   shapeHoverColor: const Color(0x8800E5FF),
                   shapeHoverStrokeColor: const Color(0xFF00E5FF),
                   shapeHoverStrokeWidth: 2.5,
@@ -599,30 +623,31 @@ class _MapLodWidgetState extends State<MapLodWidget> {
                                 widget.onSelectionChanged(_provinces[index]);
                               }
                             },
-                      sublayers: showCommuneOverlay
-                          ? [
-                              MapShapeSublayer(
-                                source: _buildCommuneSource(),
-                                strokeColor:
-                                    Colors.white.withValues(alpha: 0.55),
-                                strokeWidth: 1.0,
-                                selectedIndex: -1,
-                                selectionSettings: const MapSelectionSettings(
-                                  color: Color(0xBB00E5FF),
-                                  strokeColor: Color(0xFF00E5FF),
-                                  strokeWidth: 3.0,
-                                ),
-                                onSelectionChanged: (int index) {
+                      sublayers: [
+                        MapShapeSublayer(
+                          source: _buildCommuneSource(),
+                          strokeColor: showCommuneOverlay 
+                              ? Colors.white.withValues(alpha: 0.55)
+                              : Colors.transparent,
+                          strokeWidth: showCommuneOverlay ? 1.0 : 0.0,
+                          selectedIndex: -1,
+                          selectionSettings: const MapSelectionSettings(
+                            color: Color(0xBB00E5FF),
+                            strokeColor: Color(0xFF00E5FF),
+                            strokeWidth: 3.0,
+                          ),
+                          onSelectionChanged: showCommuneOverlay
+                              ? (int index) {
                                   if (index >= 0 &&
                                       index < _visibleCommunes.length) {
                                     widget.onSelectionChanged(
                                       _visibleCommunes[index],
                                     );
                                   }
-                                },
-                              ),
-                            ]
-                          : null,
+                                }
+                              : null,
+                        ),
+                      ],
                       initialMarkersCount: showCommuneOverlay ? 0 : 2,
                       markerBuilder: showCommuneOverlay
                           ? null
@@ -662,6 +687,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
                   ],
                 ),
               ),
+            ),
             ),
             Positioned(
               right: 16,
