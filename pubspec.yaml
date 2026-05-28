@@ -5,7 +5,7 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.11.5
+  sdk: ^3.9.2
 
 dependencies:
   flutter:
@@ -28,4 +28,4 @@ flutter:
 
   assets:
     - assets/provinces.geojson
-    - assets/communes.geojson
+    - assets/communes.json

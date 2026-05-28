@@ -72,7 +72,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
 
   static Widget _buildPlaceholder(String text) {
     return Container(
-      color: const Color(0xFF0A1628),
+      color: const Color(0xFF0F1923),
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
