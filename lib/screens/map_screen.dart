@@ -2,10 +2,13 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../models/admin_unit.dart';
 import '../models/map_detail_level.dart';
+import '../models/map_focus_request.dart';
+import '../models/search_result.dart';
 import '../repositories/map_repository.dart';
 import '../widgets/detail_panel_widget.dart';
 import '../widgets/filter_widget.dart';
 import '../widgets/map_lod_widget.dart';
+import '../widgets/map_search_overlay.dart';
 
 /// Main screen composing the sidebar filter, map, and detail panel.
 class MapScreen extends StatefulWidget {
@@ -23,6 +26,8 @@ class _MapScreenState extends State<MapScreen> {
   String _errorMessage = '';
   MapDataMode _dataMode = MapDataMode.none;
   final ValueNotifier<AdminUnit?> _selectedUnit = ValueNotifier(null);
+  MapFocusRequest? _focusRequest;
+  int _focusToken = 0;
   MapDetailState _mapDetailState = MapDetailState(
     level: MapDetailLevel.provinces,
     visibleUnitCount: 0,
@@ -83,6 +88,20 @@ class _MapScreenState extends State<MapScreen> {
 
   void _closeDetail() {
     _selectedUnit.value = null;
+  }
+
+  void _onSearchResult(SearchResult? result) {
+    if (result == null) {
+      _closeDetail();
+      return;
+    }
+    _selectedUnit.value = result.unit;
+    setState(() {
+      _focusRequest = MapFocusRequest(
+        unit: result.unit,
+        token: ++_focusToken,
+      );
+    });
   }
 
 
@@ -169,11 +188,26 @@ class _MapScreenState extends State<MapScreen> {
               children: [
                 Container(
                   color: const Color(0xFF0F1923),
-                  child: MapLodWidget(
+                  child: ValueListenableBuilder<AdminUnit?>(
+                    valueListenable: _selectedUnit,
+                    builder: (context, unit, child) {
+                      return MapLodWidget(
+                        repository: _repo,
+                        dataMode: _dataMode,
+                        onSelectionChanged: _onSelectionChanged,
+                        onDetailStateChanged: _onDetailStateChanged,
+                        focusRequest: _focusRequest,
+                        selectedUnit: unit,
+                      );
+                    },
+                  ),
+                ),
+                Positioned(
+                  top: 16,
+                  left: 16,
+                  child: MapSearchOverlay(
                     repository: _repo,
-                    dataMode: _dataMode,
-                    onSelectionChanged: _onSelectionChanged,
-                    onDetailStateChanged: _onDetailStateChanged,
+                    onResultSelected: _onSearchResult,
                   ),
                 ),
                 Positioned(top: 16, right: 16, child: _buildLayerBadge()),

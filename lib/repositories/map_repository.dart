@@ -5,6 +5,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import '../models/admin_unit.dart';
 import '../models/geo_bounds.dart';
 import '../models/map_detail_level.dart';
+import '../models/search_result.dart';
 
 /// Enum for the two geographic data layers.
 enum MapLayer {
@@ -295,6 +296,99 @@ class MapRepository {
     }
     return _provinceBounds[ma];
   }
+
+  static String removeDiacritics(String str) {
+    const withDiacritics =
+        'áàãảạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđÁÀÃẢẠĂẮẰẲẴẶÂẤẦẨẪẬÉÈẺẼẸÊẾỀỂỄỆÍÌỈĨỊÓÒỎÕỌÔỐỒỔỖỘƠỚỜỞỠỢÚÙỦŨỤƯỨỪỬỮỰÝỲỶỸỴĐ';
+    const withoutDiacritics =
+        'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyydAAAAAAAAAAAAAAAAAEEEEEEEEEEEIIIIIOOOOOOOOOOOOOOOOOUUUUUUUUUUUYYYYYD';
+    for (int i = 0; i < withDiacritics.length; i++) {
+      str = str.replaceAll(withDiacritics[i], withoutDiacritics[i]);
+    }
+    return str;
+  }
+
+  List<SearchResult> searchUnits(String query, {int limit = 20}) {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return const [];
+
+    final q = removeDiacritics(trimmed.toLowerCase());
+    final scored = <_ScoredSearchResult>[];
+
+    void consider(AdminUnit unit, MapDetailLevel level) {
+      final originalName = unit.ten.toLowerCase();
+      final name = removeDiacritics(originalName);
+      if (name.startsWith(q) || originalName.startsWith(q)) {
+        scored.add(
+          _ScoredSearchResult(
+            unit: unit,
+            level: level,
+            matchKind: SearchMatchKind.name,
+            matchLabel: unit.ten,
+            rank: 0,
+          ),
+        );
+        return;
+      }
+      if (name.contains(q) || originalName.contains(q)) {
+        scored.add(
+          _ScoredSearchResult(
+            unit: unit,
+            level: level,
+            matchKind: SearchMatchKind.name,
+            matchLabel: unit.ten,
+            rank: 1,
+          ),
+        );
+        return;
+      }
+
+      final predecessors = unit.predecessors;
+      if (predecessors != null) {
+        final origPred = predecessors.toLowerCase();
+        final pred = removeDiacritics(origPred);
+        if (pred.contains(q) || origPred.contains(q)) {
+          scored.add(
+          _ScoredSearchResult(
+            unit: unit,
+            level: level,
+            matchKind: SearchMatchKind.predecessor,
+            matchLabel: predecessors,
+            rank: 2,
+          ),
+        );
+        }
+      }
+    }
+
+    for (final unit in _provinces) {
+      consider(unit, MapDetailLevel.provinces);
+    }
+    for (final unit in _communes) {
+      consider(unit, MapDetailLevel.communes);
+    }
+
+    scored.sort((a, b) {
+      final rankCompare = a.rank.compareTo(b.rank);
+      if (rankCompare != 0) return rankCompare;
+      final levelCompare = a.level.index.compareTo(b.level.index);
+      if (levelCompare != 0) return levelCompare;
+      return a.unit.ten.compareTo(b.unit.ten);
+    });
+
+    return scored
+        .take(limit)
+        .map(
+          (entry) => SearchResult(
+            unit: entry.unit,
+            level: entry.level,
+            matchKind: entry.matchKind,
+            matchLabel: entry.matchLabel,
+          ),
+        )
+        .toList();
+  }
+
   
 
 
@@ -320,6 +414,23 @@ double _squaredDistance(double lat1, double lng1, double lat2, double lng2) {
   final dLng = lng1 - lng2;
   return dLat * dLat + dLng * dLng;
 }
+
+class _ScoredSearchResult {
+  final AdminUnit unit;
+  final MapDetailLevel level;
+  final SearchMatchKind matchKind;
+  final String matchLabel;
+  final int rank;
+
+  const _ScoredSearchResult({
+    required this.unit,
+    required this.level,
+    required this.matchKind,
+    required this.matchLabel,
+    required this.rank,
+  });
+}
+
 
 
 GeoBounds _boundsFromGeometry(dynamic geometry) {

@@ -21,6 +21,8 @@ class MapLodWidget extends StatefulWidget {
   final MapDataMode dataMode;
   final ValueChanged<AdminUnit?> onSelectionChanged;
   final ValueChanged<MapDetailState> onDetailStateChanged;
+  final MapFocusRequest? focusRequest;
+  final AdminUnit? selectedUnit;
 
   const MapLodWidget({
     super.key,
@@ -28,6 +30,8 @@ class MapLodWidget extends StatefulWidget {
     this.dataMode = MapDataMode.none,
     required this.onSelectionChanged,
     required this.onDetailStateChanged,
+    this.focusRequest,
+    this.selectedUnit,
   });
 
   @override
@@ -222,6 +226,58 @@ class _MapLodWidgetState extends State<MapLodWidget> {
     }
 
 
+
+    @override
+    void didUpdateWidget(MapLodWidget oldWidget) {
+      super.didUpdateWidget(oldWidget);
+      if (widget.focusRequest != null &&
+          widget.focusRequest!.token != _lastAppliedFocusToken) {
+        final request = widget.focusRequest!;
+        _lastAppliedFocusToken = request.token;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _applyFocusRequest(request);
+        });
+      }
+    }
+
+    void _applyFocusRequest(MapFocusRequest request) {
+      final unit = request.unit;
+      final level = widget.repository.levelForUnit(unit);
+      final bounds = widget.repository.boundsForUnit(unit);
+      if (bounds == null) return;
+
+      if (level == MapDetailLevel.communes) {
+        final parentMa = unit.parentMa;
+        if (parentMa == null || parentMa.isEmpty) return;
+
+        final parentMas = {parentMa};
+        setState(() {
+          _detailLevel = MapDetailLevel.communes;
+          _visibleParentMas = parentMas;
+          _visibleCommunes = widget.repository.communesForProvinces(parentMas);
+          _communeGeoJson = widget.repository.buildCommuneGeoJson(parentMas);
+          _isRefreshingCommunes = false;
+        });
+        _notifyDetailState();
+      } else {
+        setState(() {
+          _detailLevel = MapDetailLevel.provinces;
+          _visibleParentMas = {};
+          _visibleCommunes = [];
+          _communeGeoJson = null;
+          _isRefreshingCommunes = false;
+        });
+        _notifyDetailState();
+      }
+
+      widget.onSelectionChanged(unit);
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _refreshCameraFromController();
+        _scheduleGestureSettled();
+      });
+    }
 
     @override
     void dispose() {
@@ -523,11 +579,13 @@ class _MapLodWidgetState extends State<MapLodWidget> {
                         alpha: showCommuneOverlay ? 0.12 : 0.22,
                       ),
                       strokeWidth: showCommuneOverlay ? 0.5 : 0.8,
-                      selectedIndex: -1,
+                      selectedIndex: widget.selectedUnit != null && widget.repository.levelForUnit(widget.selectedUnit!) == MapDetailLevel.provinces
+                          ? _provinces.indexWhere((p) => p.ma == widget.selectedUnit!.ma)
+                          : -1,
                       selectionSettings: const MapSelectionSettings(
-                        color: Color(0xBB00E5FF), // Teal
-                        strokeColor: Color(0xFF00E5FF),
-                        strokeWidth: 3.0,
+                        color: Color(0xAAFF9800), // Hot orange
+                        strokeColor: Color(0xFFFF5722), // Deep orange border
+                        strokeWidth: 3.5,
                       ),
                       onSelectionChanged: showCommuneOverlay
                           ? null
@@ -541,11 +599,13 @@ class _MapLodWidgetState extends State<MapLodWidget> {
                           source: _buildCommuneSource(),
                           strokeColor: Colors.white.withValues(alpha: 0.55),
                           strokeWidth: 1.0,
-                          selectedIndex: -1,
+                          selectedIndex: widget.selectedUnit != null && widget.repository.levelForUnit(widget.selectedUnit!) == MapDetailLevel.communes
+                              ? _visibleCommunes.indexWhere((c) => c.ma == widget.selectedUnit!.ma)
+                              : -1,
                           selectionSettings: const MapSelectionSettings(
-                            color: Color(0xBB00E5FF),
-                            strokeColor: Color(0xFF00E5FF),
-                            strokeWidth: 3.0,
+                            color: Color(0xAAFF9800),
+                            strokeColor: Color(0xFFFF5722),
+                            strokeWidth: 3.5,
                           ),
                           onSelectionChanged: showCommuneOverlay
                               ? (int index) {
@@ -559,8 +619,8 @@ class _MapLodWidgetState extends State<MapLodWidget> {
                               : null,
                         ),
                       ],
-                      initialMarkersCount: showCommuneOverlay ? 0 : 2,
-                      markerBuilder: showCommuneOverlay ? null : (BuildContext context, int index) {
+                      initialMarkersCount: 2 + (widget.selectedUnit != null && widget.repository.levelForUnit(widget.selectedUnit!) == MapDetailLevel.communes ? 1 : 0),
+                      markerBuilder: (BuildContext context, int index) {
                         if (index == 0) {
                           return const MapMarker(
                             latitude: 16.5,
@@ -580,10 +640,29 @@ class _MapLodWidgetState extends State<MapLodWidget> {
                           );
                         }
                         
-                        return const MapMarker(
-                          latitude: 0,
-                          longitude: 0,
-                          child: SizedBox(),
+                        return MapMarker(
+                          latitude: _zoomPanBehavior.focalLatLng?.latitude ?? 16.0,
+                          longitude: _zoomPanBehavior.focalLatLng?.longitude ?? 106.0,
+                          alignment: Alignment.center,
+                          size: const Size(40, 40),
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              Container(
+                                width: 30,
+                                height: 30,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: const Color(0xFF00E5FF).withValues(alpha: 0.3),
+                                ),
+                              ),
+                              const Icon(
+                                Icons.location_on,
+                                color: Color(0xFF00E5FF),
+                                size: 24,
+                              ),
+                            ],
+                          ),
                         );
                       },
                       // No legend since map has no colors
