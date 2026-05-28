@@ -62,6 +62,10 @@ class _MapLodWidgetState extends State<MapLodWidget> {
   MapDataMode? _provinceSourceCacheMode;
   final Map<String, MapShapeSource> _communeSourceCache = {};
   int? _lastAppliedFocusToken;
+  
+  Timer? _selectionDelayTimer;
+  int _safeProvinceSelectedIndex = -1;
+  int _safeCommuneSelectedIndex = -1;
 
   bool _isPointerDown = false;
   bool _pendingGestureSettled = false;
@@ -207,6 +211,9 @@ class _MapLodWidgetState extends State<MapLodWidget> {
   @override
   void initState() {
     super.initState();
+    if (widget.selectedUnit != null) {
+      _updateSafeSelections();
+    }
     _zoomNotifier = ValueNotifier(_zoomLevel);
     _layerController = MapShapeLayerController();
     _zoomPanBehavior = MapZoomPanBehavior(
@@ -230,6 +237,9 @@ class _MapLodWidgetState extends State<MapLodWidget> {
     @override
     void didUpdateWidget(MapLodWidget oldWidget) {
       super.didUpdateWidget(oldWidget);
+      if (widget.selectedUnit != oldWidget.selectedUnit) {
+        _updateSafeSelections();
+      }
       if (widget.focusRequest != null &&
           widget.focusRequest!.token != _lastAppliedFocusToken) {
         final request = widget.focusRequest!;
@@ -279,8 +289,28 @@ class _MapLodWidgetState extends State<MapLodWidget> {
       });
     }
 
+    void _updateSafeSelections() {
+      _selectionDelayTimer?.cancel();
+      _selectionDelayTimer = Timer(const Duration(milliseconds: 300), () {
+        if (!mounted) return;
+        setState(() {
+          if (widget.selectedUnit != null && widget.repository.levelForUnit(widget.selectedUnit!) == MapDetailLevel.provinces) {
+            _safeProvinceSelectedIndex = _provinces.indexWhere((p) => p.ma == widget.selectedUnit!.ma);
+            _safeCommuneSelectedIndex = -1;
+          } else if (widget.selectedUnit != null && widget.repository.levelForUnit(widget.selectedUnit!) == MapDetailLevel.communes) {
+            _safeProvinceSelectedIndex = -1;
+            _safeCommuneSelectedIndex = _visibleCommunes.indexWhere((c) => c.ma == widget.selectedUnit!.ma);
+          } else {
+            _safeProvinceSelectedIndex = -1;
+            _safeCommuneSelectedIndex = -1;
+          }
+        });
+      });
+    }
+
     @override
     void dispose() {
+      _selectionDelayTimer?.cancel();
       _gestureDebounce?.cancel();
       _zoomNotifier.dispose();
       super.dispose();
@@ -579,9 +609,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
                         alpha: showCommuneOverlay ? 0.12 : 0.22,
                       ),
                       strokeWidth: showCommuneOverlay ? 0.5 : 0.8,
-                      selectedIndex: widget.selectedUnit != null && widget.repository.levelForUnit(widget.selectedUnit!) == MapDetailLevel.provinces
-                          ? _provinces.indexWhere((p) => p.ma == widget.selectedUnit!.ma)
-                          : -1,
+                      selectedIndex: _safeProvinceSelectedIndex,
                       selectionSettings: const MapSelectionSettings(
                         color: Color(0xAAFF9800), // Hot orange
                         strokeColor: Color(0xFFFF5722), // Deep orange border
@@ -599,9 +627,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
                           source: _buildCommuneSource(),
                           strokeColor: Colors.white.withValues(alpha: 0.55),
                           strokeWidth: 1.0,
-                          selectedIndex: widget.selectedUnit != null && widget.repository.levelForUnit(widget.selectedUnit!) == MapDetailLevel.communes
-                              ? _visibleCommunes.indexWhere((c) => c.ma == widget.selectedUnit!.ma)
-                              : -1,
+                          selectedIndex: _safeCommuneSelectedIndex,
                           selectionSettings: const MapSelectionSettings(
                             color: Color(0xAAFF9800),
                             strokeColor: Color(0xFFFF5722),

@@ -111,6 +111,9 @@ class MapRepository {
       minProvinceArea = _provinces.map((u) => u.dienTichKm2).reduce(math.min);
     }
     
+    // Preload communes so that they are instantly available for searching
+    await preloadCommunes();
+
     return _provinces;
   }
 
