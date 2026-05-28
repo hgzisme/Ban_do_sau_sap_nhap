@@ -234,17 +234,29 @@ class MapRepository {
     }
     return _provinceBounds[ma];
   }
+  
+  static String removeDiacritics(String str) {
+    const withDiacritics =
+        'áàãảạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđÁÀÃẢẠĂẮẰẲẴẶÂẤẦẨẪẬÉÈẺẼẸÊẾỀỂỄỆÍÌỈĨỊÓÒỎÕỌÔỐỒỔỖỘƠỚỜỞỠỢÚÙỦŨỤƯỨỪỬỮỰÝỲỶỸỴĐ';
+    const withoutDiacritics =
+        'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyydAAAAAAAAAAAAAAAAAEEEEEEEEEEEIIIIIOOOOOOOOOOOOOOOOOUUUUUUUUUUUYYYYYD';
+    for (int i = 0; i < withDiacritics.length; i++) {
+      str = str.replaceAll(withDiacritics[i], withoutDiacritics[i]);
+    }
+    return str;
+  }
 
   List<SearchResult> searchUnits(String query, {int limit = 20}) {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return const [];
 
-    final q = trimmed.toLowerCase();
+    final q = removeDiacritics(trimmed.toLowerCase());
     final scored = <_ScoredSearchResult>[];
 
     void consider(AdminUnit unit, MapDetailLevel level) {
-      final name = unit.ten.toLowerCase();
-      if (name.startsWith(q)) {
+      final originalName = unit.ten.toLowerCase();
+      final name = removeDiacritics(originalName);
+      if (name.startsWith(q) || originalName.startsWith(q)) {
         scored.add(
           _ScoredSearchResult(
             unit: unit,
@@ -256,7 +268,7 @@ class MapRepository {
         );
         return;
       }
-      if (name.contains(q)) {
+      if (name.contains(q) || originalName.contains(q)) {
         scored.add(
           _ScoredSearchResult(
             unit: unit,
@@ -270,8 +282,11 @@ class MapRepository {
       }
 
       final predecessors = unit.predecessors;
-      if (predecessors != null && predecessors.toLowerCase().contains(q)) {
-        scored.add(
+      if (predecessors != null) {
+        final origPred = predecessors.toLowerCase();
+        final pred = removeDiacritics(origPred);
+        if (pred.contains(q) || origPred.contains(q)) {
+          scored.add(
           _ScoredSearchResult(
             unit: unit,
             level: level,
@@ -280,6 +295,7 @@ class MapRepository {
             rank: 2,
           ),
         );
+        }
       }
     }
 

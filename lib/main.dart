@@ -11,6 +11,11 @@ void main() {
         stackStr.contains('getVisibleBounds')) {
       return; // Ignore
     }
+    // Suppress known Syncfusion map selection race condition
+    if (exceptionStr.contains('Bad state: No element') &&
+        stackStr.contains('_handleShapeLayerSelection')) {
+      return; // Ignore
+    }
     // Forward other errors
     FlutterError.presentError(details);
   };

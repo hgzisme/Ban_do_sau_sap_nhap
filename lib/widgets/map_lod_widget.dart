@@ -10,7 +10,7 @@ import '../models/geo_bounds.dart';
 import '../models/map_detail_level.dart';
 import '../models/map_focus_request.dart';
 import '../repositories/map_repository.dart';
-import 'map_style.dart';
+
 
 /// Google Maps-style LOD map: provinces at low zoom, viewport-filtered communes
 /// at high zoom. Province base layer handles pan; communes render as sublayer.
@@ -20,6 +20,7 @@ class MapLodWidget extends StatefulWidget {
   final ValueChanged<MapDetailState>? onDetailStateChanged;
   final ColorMode colorMode;
   final MapFocusRequest? focusRequest;
+  final AdminUnit? selectedUnit;
 
   const MapLodWidget({
     super.key,
@@ -28,6 +29,7 @@ class MapLodWidget extends StatefulWidget {
     this.onDetailStateChanged,
     this.colorMode = ColorMode.byType,
     this.focusRequest,
+    this.selectedUnit,
   });
 
   @override
@@ -76,12 +78,6 @@ class _MapLodWidgetState extends State<MapLodWidget> {
         const MapLatLng(15.0, 108.5);
   }
 
-  MapLatLng _focalFromGeoBounds(GeoBounds bounds) {
-    return MapLatLng(
-      (bounds.south + bounds.north) / 2,
-      (bounds.west + bounds.east) / 2,
-    );
-  }
 
   MapLatLng _focalFromBounds(MapLatLngBounds bounds) {
     return MapLatLng(
@@ -211,124 +207,103 @@ class _MapLodWidgetState extends State<MapLodWidget> {
     _zoomNotifier = ValueNotifier(_zoomLevel);
     _layerController = MapShapeLayerController();
     _zoomPanBehavior = MapZoomPanBehavior(
-      enablePanning: true,
-      enablePinching: true,
-      enableDoubleTapZooming: true,
-      enableMouseWheelZooming: true,
-      zoomLevel: _zoomLevel,
-      minZoomLevel: MapZoomThresholds.minZoomLevel,
-      maxZoomLevel: MapZoomThresholds.maxZoomLevel,
-      showToolbar: false,
-    );
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _notifyDetailState();
-    });
-  }
-
-  @override
-  void didUpdateWidget(MapLodWidget oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.colorMode != widget.colorMode) {
-      _provinceSourceCache = null;
-      _provinceSourceCacheKey = null;
-      _communeSourceCache.clear();
-      setState(() {});
-    }
-    if (widget.focusRequest != null &&
-        widget.focusRequest!.token != _lastAppliedFocusToken) {
-      final request = widget.focusRequest!;
-      _lastAppliedFocusToken = request.token;
+        enablePanning: true,
+        enablePinching: true,
+        enableDoubleTapZooming: true,
+        enableMouseWheelZooming: true,
+        zoomLevel: _zoomLevel,
+        focalLatLng: const MapLatLng(16.0, 106.0),
+        minZoomLevel: MapZoomThresholds.minZoomLevel,
+        maxZoomLevel: MapZoomThresholds.maxZoomLevel,
+        showToolbar: false,
+      );
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _applyFocusRequest(request);
+        if (mounted) _notifyDetailState();
       });
     }
-  }
 
-  void _applyFocusRequest(MapFocusRequest request) {
-    final unit = request.unit;
-    final level = widget.repository.levelForUnit(unit);
-    final bounds = widget.repository.boundsForUnit(unit);
-    if (bounds == null) return;
-
-    final focal = _focalFromGeoBounds(bounds);
-    final targetZoom = _clampZoom(
-      level == MapDetailLevel.communes
-          ? MapZoomThresholds.focusZoomCommune
-          : MapZoomThresholds.focusZoomProvince,
-    );
-
-    if (level == MapDetailLevel.communes) {
-      final parentMa = unit.parentMa;
-      if (parentMa == null || parentMa.isEmpty) return;
-
-      final parentMas = {parentMa};
-      setState(() {
-        _detailLevel = MapDetailLevel.communes;
-        _visibleParentMas = parentMas;
-        _visibleCommunes = widget.repository.communesForProvinces(parentMas);
-        _communeGeoJsonBytes = widget.repository.buildCommuneGeoJsonBytes(parentMas);
-        _isRefreshingCommunes = false;
-      });
-      _notifyDetailState();
-    } else {
-      setState(() {
-        _detailLevel = MapDetailLevel.provinces;
-        _visibleParentMas = {};
-        _visibleCommunes = [];
-        _communeGeoJsonBytes = null;
-        _isRefreshingCommunes = false;
-      });
-      _notifyDetailState();
+    @override
+    void didUpdateWidget(MapLodWidget oldWidget) {
+      super.didUpdateWidget(oldWidget);
+      if (oldWidget.colorMode != widget.colorMode) {
+        _provinceSourceCache = null;
+        _provinceSourceCacheKey = null;
+        _communeSourceCache.clear();
+        setState(() {});
+      }
+      if (widget.focusRequest != null &&
+          widget.focusRequest!.token != _lastAppliedFocusToken) {
+        final request = widget.focusRequest!;
+        _lastAppliedFocusToken = request.token;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _applyFocusRequest(request);
+        });
+      }
     }
 
-    _zoomLevel = targetZoom;
-    _zoomNotifier.value = targetZoom;
-    _cameraFocal = focal;
-    _cameraVisibleBounds = MapLatLngBounds(
-      MapLatLng(bounds.north, bounds.east),
-      MapLatLng(bounds.south, bounds.west),
-    );
+    void _applyFocusRequest(MapFocusRequest request) {
+      final unit = request.unit;
+      final level = widget.repository.levelForUnit(unit);
+      final bounds = widget.repository.boundsForUnit(unit);
+      if (bounds == null) return;
 
-    try {
-      _zoomPanBehavior.focalLatLng = focal;
-      _zoomPanBehavior.zoomLevel = targetZoom;
-      _zoomLevel = _clampZoom(_zoomPanBehavior.zoomLevel);
-      _zoomNotifier.value = _zoomLevel;
-    } catch (_) {}
+      if (level == MapDetailLevel.communes) {
+        final parentMa = unit.parentMa;
+        if (parentMa == null || parentMa.isEmpty) return;
 
-    widget.onSelectionChanged(unit);
+        final parentMas = {parentMa};
+        setState(() {
+          _detailLevel = MapDetailLevel.communes;
+          _visibleParentMas = parentMas;
+          _visibleCommunes = widget.repository.communesForProvinces(parentMas);
+          _communeGeoJsonBytes = widget.repository.buildCommuneGeoJsonBytes(parentMas);
+          _isRefreshingCommunes = false;
+        });
+        _notifyDetailState();
+      } else {
+        setState(() {
+          _detailLevel = MapDetailLevel.provinces;
+          _visibleParentMas = {};
+          _visibleCommunes = [];
+          _communeGeoJsonBytes = null;
+          _isRefreshingCommunes = false;
+        });
+        _notifyDetailState();
+      }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _refreshCameraFromController();
-      _scheduleGestureSettled();
-    });
-  }
+      widget.onSelectionChanged(unit);
 
-  @override
-  void dispose() {
-    _gestureDebounce?.cancel();
-    _zoomNotifier.dispose();
-    super.dispose();
-  }
-
-  MapDetailLevel _resolveDetailLevel(double zoom) {
-    if (_detailLevel == MapDetailLevel.provinces) {
-      return zoom >= MapZoomThresholds.zoomInToCommunes
-          ? MapDetailLevel.communes
-          : MapDetailLevel.provinces;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _refreshCameraFromController();
+        _scheduleGestureSettled();
+      });
     }
-    return zoom <= MapZoomThresholds.zoomOutToProvinces
-        ? MapDetailLevel.provinces
-        : MapDetailLevel.communes;
-  }
 
-  void _scheduleGestureSettled() {
-    _gestureDebounce?.cancel();
-    _gestureDebounce = Timer(MapZoomThresholds.viewportDebounce, () {
-      if (mounted) _onGestureSettled();
-    });
-  }
+    @override
+    void dispose() {
+      _gestureDebounce?.cancel();
+      _zoomNotifier.dispose();
+      super.dispose();
+    }
+
+    MapDetailLevel _resolveDetailLevel(double zoom) {
+      if (_detailLevel == MapDetailLevel.provinces) {
+        return zoom >= MapZoomThresholds.zoomInToCommunes
+            ? MapDetailLevel.communes
+            : MapDetailLevel.provinces;
+      }
+      return zoom <= MapZoomThresholds.zoomOutToProvinces
+          ? MapDetailLevel.provinces
+          : MapDetailLevel.communes;
+    }
+
+    void _scheduleGestureSettled() {
+      _gestureDebounce?.cancel();
+      _gestureDebounce = Timer(MapZoomThresholds.viewportDebounce, () {
+        if (mounted) _onGestureSettled();
+      });
+    }
 
   void _onGestureSettled() {
     if (_isPointerDown) {
@@ -469,31 +444,6 @@ class _MapLodWidgetState extends State<MapLodWidget> {
     return _buildTypeMemorySource(data, geoJsonBytes);
   }
 
-  List<MapColorMapper> _typeColorMappers(List<AdminUnit> data) {
-    final categories = data.map((u) => u.capHanhChinh).toSet();
-    return categories
-        .map(
-          (cap) => MapColorMapper(
-            value: cap,
-            color: colorForCategory(cap).withValues(alpha: 0.75),
-            text: cap,
-          ),
-        )
-        .toList();
-  }
-
-  List<MapColorMapper> _regionColorMappers(List<AdminUnit> data) {
-    final regions = data.map((u) => u.macroRegion ?? 'unknown').toSet();
-    return regions
-        .map(
-          (region) => MapColorMapper(
-            value: region,
-            color: colorForRegion(region).withValues(alpha: 0.75),
-            text: regionDisplayName(region),
-          ),
-        )
-        .toList();
-  }
 
   MapShapeSource _buildTypeMemorySource(
     List<AdminUnit> data,
@@ -501,11 +451,13 @@ class _MapLodWidgetState extends State<MapLodWidget> {
   ) {
     return MapShapeSource.memory(
       geoJsonBytes,
-      shapeDataField: 'ten',
+      shapeDataField: 'ma',
       dataCount: data.length,
-      primaryValueMapper: (int index) => data[index].ten,
-      shapeColorValueMapper: (int index) => data[index].capHanhChinh,
-      shapeColorMappers: _typeColorMappers(data),
+      primaryValueMapper: (int index) => data[index].ma ?? 'unknown',
+      shapeColorValueMapper: (int index) => 'transparent',
+      shapeColorMappers: const [
+        MapColorMapper(value: 'transparent', color: Colors.transparent),
+      ],
     );
   }
 
@@ -515,12 +467,13 @@ class _MapLodWidgetState extends State<MapLodWidget> {
   ) {
     return MapShapeSource.memory(
       geoJsonBytes,
-      shapeDataField: 'ten',
+      shapeDataField: 'ma',
       dataCount: data.length,
-      primaryValueMapper: (int index) => data[index].ten,
-      shapeColorValueMapper: (int index) =>
-          data[index].macroRegion ?? 'unknown',
-      shapeColorMappers: _regionColorMappers(data),
+      primaryValueMapper: (int index) => data[index].ma ?? 'unknown',
+      shapeColorValueMapper: (int index) => 'transparent',
+      shapeColorMappers: const [
+        MapColorMapper(value: 'transparent', color: Colors.transparent),
+      ],
     );
   }
 
@@ -599,22 +552,18 @@ class _MapLodWidgetState extends State<MapLodWidget> {
                       zoomPanBehavior: _zoomPanBehavior,
                       onWillZoom: _handleWillZoom,
                       onWillPan: _handleWillPan,
-                      loadingBuilder: (BuildContext context) {
-                        return const Center(
-                          child: CircularProgressIndicator(
-                            color: Color(0xFF00E5FF),
-                          ),
-                        );
-                      },
+                      color: Colors.transparent,
                       strokeColor: Colors.white.withValues(
                         alpha: showCommuneOverlay ? 0.12 : 0.22,
                       ),
                       strokeWidth: showCommuneOverlay ? 0.5 : 0.8,
-                      selectedIndex: -1,
+                      selectedIndex: widget.selectedUnit != null && widget.repository.levelForUnit(widget.selectedUnit!) == MapDetailLevel.provinces
+                          ? _provinces.indexWhere((p) => p.ma == widget.selectedUnit!.ma)
+                          : -1,
                       selectionSettings: const MapSelectionSettings(
-                        color: Color(0xBB00E5FF),
-                        strokeColor: Color(0xFF00E5FF),
-                        strokeWidth: 3.0,
+                        color: Color(0xAAFF9800), // Hot orange
+                        strokeColor: Color(0xFFFF5722), // Deep orange border
+                        strokeWidth: 3.5,
                       ),
                       onSelectionChanged: showCommuneOverlay
                           ? null
@@ -630,11 +579,13 @@ class _MapLodWidgetState extends State<MapLodWidget> {
                               ? Colors.white.withValues(alpha: 0.55)
                               : Colors.transparent,
                           strokeWidth: showCommuneOverlay ? 1.0 : 0.0,
-                          selectedIndex: -1,
+                          selectedIndex: widget.selectedUnit != null && widget.repository.levelForUnit(widget.selectedUnit!) == MapDetailLevel.communes
+                              ? _visibleCommunes.indexWhere((c) => c.ma == widget.selectedUnit!.ma)
+                              : -1,
                           selectionSettings: const MapSelectionSettings(
-                            color: Color(0xBB00E5FF),
-                            strokeColor: Color(0xFF00E5FF),
-                            strokeWidth: 3.0,
+                            color: Color(0xAAFF9800),
+                            strokeColor: Color(0xFFFF5722),
+                            strokeWidth: 3.5,
                           ),
                           onSelectionChanged: showCommuneOverlay
                               ? (int index) {
@@ -648,41 +599,53 @@ class _MapLodWidgetState extends State<MapLodWidget> {
                               : null,
                         ),
                       ],
-                      initialMarkersCount: showCommuneOverlay ? 0 : 2,
-                      markerBuilder: showCommuneOverlay
-                          ? null
-                          : (BuildContext context, int index) {
-                              if (index == 0) {
-                                return MapMarker(
-                                  latitude: 16.5,
-                                  longitude: 111.8,
-                                  child: const _IslandMarker(
-                                    label:
-                                        'Quần đảo Hoàng Sa\n(TP. Đà Nẵng)',
-                                  ),
-                                );
-                              }
-                              return MapMarker(
-                                latitude: 10.0,
-                                longitude: 114.0,
-                                child: const _IslandMarker(
-                                  label:
-                                      'Quần đảo Trường Sa\n(Tỉnh Khánh Hòa)',
-                                ),
-                              );
-                            },
-                      legend: showCommuneOverlay
-                          ? null
-                          : MapLegend(
-                              MapElement.shape,
-                              position: MapLegendPosition.bottom,
-                              overflowMode: MapLegendOverflowMode.wrap,
-                              padding: const EdgeInsets.all(12),
-                              textStyle: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 11,
-                              ),
+                      initialMarkersCount: 2 + (widget.selectedUnit != null && widget.repository.levelForUnit(widget.selectedUnit!) == MapDetailLevel.communes ? 1 : 0),
+                      markerBuilder: (BuildContext context, int index) {
+                        if (index == 0) {
+                          return const MapMarker(
+                            latitude: 16.5,
+                            longitude: 111.8,
+                            child: _IslandMarker(
+                              label: 'Quần đảo Hoàng Sa\n(TP. Đà Nẵng)',
                             ),
+                          );
+                        }
+                        if (index == 1) {
+                          return const MapMarker(
+                            latitude: 10.0,
+                            longitude: 114.0,
+                            child: _IslandMarker(
+                              label: 'Quần đảo Trường Sa\n(Tỉnh Khánh Hòa)',
+                            ),
+                          );
+                        }
+                        
+                        return MapMarker(
+                          latitude: _zoomPanBehavior.focalLatLng?.latitude ?? 16.0,
+                          longitude: _zoomPanBehavior.focalLatLng?.longitude ?? 106.0,
+                          alignment: Alignment.center,
+                          size: const Size(40, 40),
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              Container(
+                                width: 30,
+                                height: 30,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: const Color(0xFF00E5FF).withValues(alpha: 0.3),
+                                ),
+                              ),
+                              const Icon(
+                                Icons.location_on,
+                                color: Color(0xFF00E5FF),
+                                size: 24,
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      // No legend since map has no colors
                     ),
                   ],
                 ),

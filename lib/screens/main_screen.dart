@@ -119,11 +119,11 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
               double scale = 1 - (_animationController.value * 0.12); // Scale down to 88%
               double radius = _animationController.value * 28;
 
-              return Transform(
-                transform: Matrix4.identity()
-                  ..translate(slide)
-                  ..scale(scale),
-                alignment: Alignment.centerLeft,
+              return Transform.translate(
+                offset: Offset(slide, 0),
+                child: Transform.scale(
+                  scale: scale,
+                  alignment: Alignment.centerLeft,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(radius),
                   child: Container(
@@ -131,7 +131,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                       boxShadow: [
                         if (_isMenuOpen)
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.4),
+                            color: Colors.black.withValues(alpha: 0.4),
                             blurRadius: 24,
                             offset: const Offset(-8, 0),
                           ),
@@ -139,6 +139,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                     ),
                     child: _buildMainContent(),
                   ),
+                ),
                 ),
               );
             },
@@ -193,10 +194,10 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                     curve: Curves.easeInOut,
                     margin: const EdgeInsets.only(bottom: 12),
                     decoration: BoxDecoration(
-                      color: isSelected ? const Color(0xFF00E5FF).withOpacity(0.15) : Colors.transparent,
+                      color: isSelected ? const Color(0xFF00E5FF).withValues(alpha: 0.15) : Colors.transparent,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: isSelected ? const Color(0xFF00E5FF).withOpacity(0.3) : Colors.transparent,
+                        color: isSelected ? const Color(0xFF00E5FF).withValues(alpha: 0.3) : Colors.transparent,
                       ),
                     ),
                     child: ListTile(
@@ -262,7 +263,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1.0),
           child: Container(
-            color: Colors.white.withOpacity(0.05),
+            color: Colors.white.withValues(alpha: 0.05),
             height: 1.0,
           ),
         ),

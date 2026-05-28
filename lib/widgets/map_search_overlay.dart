@@ -6,7 +6,7 @@ import '../repositories/map_repository.dart';
 
 class MapSearchOverlay extends StatefulWidget {
   final MapRepository repository;
-  final ValueChanged<SearchResult> onResultSelected;
+  final ValueChanged<SearchResult?> onResultSelected;
 
   const MapSearchOverlay({
     super.key,
@@ -68,6 +68,7 @@ class _MapSearchOverlayState extends State<MapSearchOverlay> {
       _results = const [];
       _showDropdown = false;
     });
+    widget.onResultSelected(null);
   }
 
   void _selectResult(SearchResult result) {

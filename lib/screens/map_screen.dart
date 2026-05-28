@@ -21,6 +21,8 @@ class _MapScreenState extends State<MapScreen> {
   final MapRepository _repo = MapRepository();
 
   bool _loading = true;
+  bool _hasError = false;
+  String _errorMessage = '';
   final ValueNotifier<AdminUnit?> _selectedUnit = ValueNotifier(null);
   ColorMode _colorMode = ColorMode.byType;
   MapFocusRequest? _focusRequest;
@@ -37,15 +39,40 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Future<void> _loadData() async {
-    await _repo.loadData();
-    await _repo.preloadCommunes();
-    setState(() {
-      _loading = false;
-      _mapDetailState = MapDetailState(
-        level: MapDetailLevel.provinces,
-        visibleUnitCount: _repo.provinces.length,
-      );
-    });
+    try {
+      await _repo.loadData();
+      await _repo.preloadCommunes();
+      
+      if (_repo.provinces.isEmpty) {
+        throw Exception("Không tìm thấy dữ liệu bản đồ trong hệ thống!");
+      }
+      
+      setState(() {
+        _loading = false;
+        _hasError = false;
+        _mapDetailState = MapDetailState(
+          level: MapDetailLevel.provinces,
+          visibleUnitCount: _repo.provinces.length,
+        );
+      });
+    } catch (e) {
+      setState(() {
+        _loading = false;
+        _hasError = true;
+        _errorMessage = e.toString();
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Lỗi tải dữ liệu: $_errorMessage"),
+            backgroundColor: Colors.redAccent,
+            duration: const Duration(seconds: 5),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   void _onColorModeChanged(ColorMode mode) {
@@ -70,7 +97,11 @@ class _MapScreenState extends State<MapScreen> {
     _selectedUnit.value = null;
   }
 
-  void _onSearchResult(SearchResult result) {
+  void _onSearchResult(SearchResult? result) {
+    if (result == null) {
+      _closeDetail();
+      return;
+    }
     _selectedUnit.value = result.unit;
     setState(() {
       _focusRequest = MapFocusRequest(
@@ -101,6 +132,51 @@ class _MapScreenState extends State<MapScreen> {
       );
     }
 
+    if (_hasError) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF0F1923),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 64),
+              const SizedBox(height: 16),
+              const Text(
+                'Lỗi Khởi Tạo Dữ Liệu',
+                style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Text(
+                  _errorMessage,
+                  style: const TextStyle(color: Colors.white54, fontSize: 14),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 32),
+              ElevatedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _loading = true;
+                    _hasError = false;
+                  });
+                  _loadData();
+                },
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Thử Lại'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF00E5FF),
+                  foregroundColor: const Color(0xFF0F1923),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFF0F1923),
       body: Row(
@@ -119,12 +195,18 @@ class _MapScreenState extends State<MapScreen> {
               children: [
                 Container(
                   color: const Color(0xFF0F1923),
-                  child: MapLodWidget(
-                    repository: _repo,
-                    onSelectionChanged: _onSelectionChanged,
-                    onDetailStateChanged: _onDetailStateChanged,
-                    colorMode: _colorMode,
-                    focusRequest: _focusRequest,
+                  child: ValueListenableBuilder<AdminUnit?>(
+                    valueListenable: _selectedUnit,
+                    builder: (context, unit, child) {
+                      return MapLodWidget(
+                        repository: _repo,
+                        onSelectionChanged: _onSelectionChanged,
+                        onDetailStateChanged: _onDetailStateChanged,
+                        colorMode: _colorMode,
+                        focusRequest: _focusRequest,
+                        selectedUnit: unit,
+                      );
+                    },
                   ),
                 ),
                 Positioned(
