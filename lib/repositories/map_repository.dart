@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:math' as math;
+import 'package:flutter/material.dart';
 import 'dart:typed_data';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter/foundation.dart' show compute;
@@ -13,11 +15,21 @@ enum MapLayer {
   communes,
 }
 
-/// Enum for map coloring mode.
+/// Enum for map coloring mode (legacy, used by map_widget).
 enum ColorMode {
   byType,
   byRegion,
 }
+
+/// Enum for Choropleth data visualization mode.
+enum MapDataMode {
+  none,
+  population,
+  density,
+  area,
+  macroRegion,
+}
+
 
 /// Snapshot of map LOD state for UI badges.
 class MapDetailState {
@@ -53,6 +65,13 @@ class MapRepository {
       _provinceGeoJsonBytes ?? Uint8List.fromList(utf8.encode('{"type":"FeatureCollection","features":[]}'));
   bool get communesIndexed => _communesByParentMa.isNotEmpty;
 
+  int maxProvincePopulation = 0;
+  int minProvincePopulation = 0;
+  double maxProvinceDensity = 0.0;
+  double minProvinceDensity = 0.0;
+  double maxProvinceArea = 0.0;
+  double minProvinceArea = 0.0;
+
   List<AdminUnit> get activeUnits =>
       _activeLayer == MapLayer.provinces ? _provinces : _communes;
 
@@ -67,6 +86,16 @@ class MapRepository {
     _provinceBounds = result.boundsByMa;
     _provinceGeoJsonBytes = result.geoJsonBytes;
     _activeLayer = MapLayer.provinces;
+    
+    if (_provinces.isNotEmpty) {
+      maxProvincePopulation = _provinces.map((u) => u.danSo).reduce(math.max);
+      minProvincePopulation = _provinces.map((u) => u.danSo).reduce(math.min);
+      maxProvinceDensity = _provinces.map((u) => u.matDo).reduce(math.max);
+      minProvinceDensity = _provinces.map((u) => u.matDo).reduce(math.min);
+      maxProvinceArea = _provinces.map((u) => u.dienTichKm2).reduce(math.max);
+      minProvinceArea = _provinces.map((u) => u.dienTichKm2).reduce(math.min);
+    }
+    
     return _provinces;
   }
 

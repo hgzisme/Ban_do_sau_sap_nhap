@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../models/admin_unit.dart';
 import '../models/map_detail_level.dart';
@@ -23,8 +24,8 @@ class _MapScreenState extends State<MapScreen> {
   bool _loading = true;
   bool _hasError = false;
   String _errorMessage = '';
+  MapDataMode _dataMode = MapDataMode.none;
   final ValueNotifier<AdminUnit?> _selectedUnit = ValueNotifier(null);
-  ColorMode _colorMode = ColorMode.byType;
   MapFocusRequest? _focusRequest;
   int _focusToken = 0;
   MapDetailState _mapDetailState = MapDetailState(
@@ -75,15 +76,7 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  void _onColorModeChanged(ColorMode mode) {
-    setState(() => _colorMode = mode);
-  }
 
-  void _onToggleCategory(String cat) {}
-
-  void _onSelectAll() {}
-
-  void _onDeselectAll() {}
 
   void _onSelectionChanged(AdminUnit? unit) {
     _selectedUnit.value = unit;
@@ -182,13 +175,12 @@ class _MapScreenState extends State<MapScreen> {
       body: Row(
         children: [
           FilterWidget(
-            allCategories: const {},
-            activeCategories: const {},
-            onToggle: _onToggleCategory,
-            onSelectAll: _onSelectAll,
-            onDeselectAll: _onDeselectAll,
-            colorMode: _colorMode,
-            onColorModeChanged: _onColorModeChanged,
+            dataMode: _dataMode,
+            onDataModeChanged: (mode) {
+              setState(() {
+                _dataMode = mode;
+              });
+            },
           ),
           Expanded(
             child: Stack(
@@ -200,9 +192,9 @@ class _MapScreenState extends State<MapScreen> {
                     builder: (context, unit, child) {
                       return MapLodWidget(
                         repository: _repo,
+                        dataMode: _dataMode,
                         onSelectionChanged: _onSelectionChanged,
                         onDetailStateChanged: _onDetailStateChanged,
-                        colorMode: _colorMode,
                         focusRequest: _focusRequest,
                         selectedUnit: unit,
                       );
@@ -218,6 +210,20 @@ class _MapScreenState extends State<MapScreen> {
                   ),
                 ),
                 Positioned(top: 16, right: 16, child: _buildLayerBadge()),
+                if (_dataMode != MapDataMode.none && _dataMode != MapDataMode.macroRegion)
+                  Positioned(
+                    bottom: 16,
+                    right: 16,
+                    child: _VerticalLegendWidget(
+                      minVal: _dataMode == MapDataMode.density
+                          ? _repo.minProvinceDensity
+                          : (_dataMode == MapDataMode.area ? _repo.minProvinceArea : _repo.minProvincePopulation.toDouble()),
+                      maxVal: _dataMode == MapDataMode.density
+                          ? _repo.maxProvinceDensity
+                          : (_dataMode == MapDataMode.area ? _repo.maxProvinceArea : _repo.maxProvincePopulation.toDouble()),
+                      mode: _dataMode,
+                    ),
+                  ),
                 Positioned(
                   bottom: 16,
                   left: 16,
@@ -364,6 +370,114 @@ class _LoadingSpinnerState extends State<_LoadingSpinner>
           ),
         );
       },
+    );
+  }
+}
+
+class _VerticalLegendWidget extends StatelessWidget {
+  final double minVal;
+  final double maxVal;
+  final MapDataMode mode;
+
+  const _VerticalLegendWidget({
+    required this.minVal,
+    required this.maxVal,
+    required this.mode,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDensity = mode == MapDataMode.density;
+    final isArea = mode == MapDataMode.area;
+    
+    final title = isDensity ? 'Mật độ (người/km²)' : (isArea ? 'Diện tích (km²)' : 'Dân số (người)');
+    
+    final List<Color> gradientColors;
+    if (isDensity) {
+      gradientColors = [
+        const Color(0x33FF9800), // 20% Orange
+        const Color(0xFFFF9800), // 100% Orange
+      ];
+    } else if (isArea) {
+      gradientColors = [
+        const Color(0x33E040FB), // 20% PurpleAccent
+        const Color(0xFFE040FB), // 100% PurpleAccent
+      ];
+    } else {
+      gradientColors = [
+        const Color(0x3300E676), // 20% Green
+        const Color(0xFF00E676), // 100% Green
+      ];
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xCC1B2838),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          RotatedBox(
+            quarterTurns: 3,
+            child: Text(
+              title,
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 10, letterSpacing: 1.1),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Container(
+            width: 12,
+            height: 250,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(4),
+              gradient: LinearGradient(
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+                colors: gradientColors,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            height: 250,
+            width: 32, // fixed width for labels to align correctly
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: List.generate(6, (index) {
+                double ratio = index / 5; // 0.0 to 1.0
+                double val;
+                if (isDensity) {
+                  double logMin = math.log(minVal <= 0 ? 1 : minVal);
+                  double logMax = math.log(maxVal <= 0 ? 1 : maxVal);
+                  val = math.exp(logMin + (logMax - logMin) * ratio);
+                } else {
+                  val = minVal + (maxVal - minVal) * ratio;
+                }
+                String label;
+                if (isDensity) {
+                  label = val > 1000 ? '${(val / 1000).toStringAsFixed(1)}K' : val.round().toString();
+                } else if (isArea) {
+                  label = val > 1000 ? '${(val / 1000).toStringAsFixed(1)}K' : val.round().toString();
+                } else {
+                  label = '${(val / 1000000).toStringAsFixed(1)}M';
+                }
+                return Positioned(
+                  bottom: (250 - 14) * ratio, // 14 is approx text height
+                  left: 0,
+                  child: Text(
+                    label,
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 10),
+                  ),
+                );
+              }),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

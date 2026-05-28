@@ -8,24 +8,13 @@ import 'map_style.dart' show colorForCategory, colorForRegion, regionNames, type
 /// - Category filter chips
 /// - Select all / Deselect all
 class FilterWidget extends StatelessWidget {
-  final Set<String> allCategories;
-  final Set<String> activeCategories;
-  final ValueChanged<String> onToggle;
-  final VoidCallback onSelectAll;
-  final VoidCallback onDeselectAll;
-  // Layer switching removed: map now auto-switches by zoom level.
-  final ColorMode colorMode;
-  final ValueChanged<ColorMode> onColorModeChanged;
+  final MapDataMode dataMode;
+  final ValueChanged<MapDataMode> onDataModeChanged;
 
   const FilterWidget({
     super.key,
-    required this.allCategories,
-    required this.activeCategories,
-    required this.onToggle,
-    required this.onSelectAll,
-    required this.onDeselectAll,
-    required this.colorMode,
-    required this.onColorModeChanged,
+    required this.dataMode,
+    required this.onDataModeChanged,
   });
 
   @override
@@ -77,126 +66,107 @@ class FilterWidget extends StatelessWidget {
           ),
           const Divider(color: Color(0xFF2A3F54), height: 1),
 
-          // Layer switcher removed; map now auto-switches by zoom level.
-          const Divider(color: Color(0xFF2A3F54), height: 1),
-
-          // ── Color Mode Switcher ──
+          // ── Map Display Mode Switcher ──
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'CHẾ ĐỘ MÀU SẮC',
+                  'BẢN ĐỒ',
                   style: TextStyle(
-                    color: Colors.white38,
-                    fontSize: 11,
+                    color: Colors.white,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    letterSpacing: 0.8,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
                 Container(
+                  padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
                     color: const Color(0xFF0F1923),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFF2A3F54)),
                   ),
                   child: Row(
                     children: [
                       _LayerTab(
-                        label: 'Theo loại',
-                        icon: Icons.category_rounded,
-                        isActive: colorMode == ColorMode.byType,
-                        onTap: () => onColorModeChanged(ColorMode.byType),
-                        accentColor: const Color(0xFF4ECDC4),
-                      ),
-                      _LayerTab(
-                        label: 'Theo vùng',
-                        icon: Icons.public_rounded,
-                        isActive: colorMode == ColorMode.byRegion,
-                        onTap: () => onColorModeChanged(ColorMode.byRegion),
-                        accentColor: const Color(0xFFFF6B6B),
+                        label: 'Mặc định',
+                        icon: Icons.map_rounded,
+                        isActive: dataMode == MapDataMode.none,
+                        accentColor: const Color(0xFF00E5FF),
+                        onTap: () => onDataModeChanged(MapDataMode.none),
                       ),
                     ],
                   ),
                 ),
+                const SizedBox(height: 24),
+                const Text(
+                  'BẢN ĐỒ BIỂU DIỄN THEO VÙNG',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F1923),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          _LayerTab(
+                            label: 'Dân số',
+                            icon: Icons.people_alt_rounded,
+                            isActive: dataMode == MapDataMode.population,
+                            accentColor: Colors.greenAccent,
+                            onTap: () => onDataModeChanged(MapDataMode.population),
+                          ),
+                          const SizedBox(width: 4),
+                          _LayerTab(
+                            label: 'Mật độ',
+                            icon: Icons.blur_on_rounded,
+                            isActive: dataMode == MapDataMode.density,
+                            accentColor: Colors.orangeAccent,
+                            onTap: () => onDataModeChanged(MapDataMode.density),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          _LayerTab(
+                            label: 'Diện tích',
+                            icon: Icons.square_foot_rounded,
+                            isActive: dataMode == MapDataMode.area,
+                            accentColor: Colors.purpleAccent,
+                            onTap: () => onDataModeChanged(MapDataMode.area),
+                          ),
+                          const SizedBox(width: 4),
+                          _LayerTab(
+                            label: 'Vùng miền',
+                            icon: Icons.category_rounded,
+                            isActive: dataMode == MapDataMode.macroRegion,
+                            accentColor: Colors.blueAccent,
+                            onTap: () => onDataModeChanged(MapDataMode.macroRegion),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                if (dataMode == MapDataMode.macroRegion) ...[
+                  const SizedBox(height: 16),
+                  const _MacroRegionLegend(),
+                ],
               ],
             ),
           ),
-          const Divider(color: Color(0xFF2A3F54), height: 1),
-
-          // (Category filter removed as requested)
           const Spacer(),
-
-          if (colorMode == ColorMode.byType)
-            Container(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-              decoration: const BoxDecoration(
-                border: Border(
-                  top: BorderSide(color: Color(0xFF2A3F54), width: 1),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'CHÚ GIẢI LOẠI ĐƠN VỊ',
-                    style: TextStyle(
-                      color: Colors.white38,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: typeLegendOrder.map((type) {
-                      final color = colorForCategory(type);
-                      return _LegendChip(label: type, color: color);
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 4),
-                ],
-              ),
-            ),
-
-          // ── Region Legend (when in region mode) ──
-          if (colorMode == ColorMode.byRegion)
-            Container(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-              decoration: const BoxDecoration(
-                border: Border(
-                  top: BorderSide(color: Color(0xFF2A3F54), width: 1),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'CHÚ GIẢI VÙNG MIỀN',
-                    style: TextStyle(
-                      color: Colors.white38,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: regionNames.entries.map((entry) {
-                      final color = colorForRegion(entry.key);
-                      return _LegendChip(label: entry.value, color: color);
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 4),
-                ],
-              ),
-            ),
 
           // ── Footer: Data Source ──
           Container(
@@ -222,38 +192,68 @@ class FilterWidget extends StatelessWidget {
   }
 }
 
-class _LegendChip extends StatelessWidget {
-  final String label;
-  final Color color;
-
-  const _LegendChip({required this.label, required this.color});
+class _MacroRegionLegend extends StatelessWidget {
+  const _MacroRegionLegend();
 
   @override
   Widget build(BuildContext context) {
+    final List<String> regions = [
+      'northern_midlands',
+      'central_coast',
+      'red_river_delta',
+      'mekong_delta',
+      'southeast',
+      'central_highlands',
+    ];
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withValues(alpha: 0.4)),
+        color: const Color(0xFF0F1923),
+        borderRadius: BorderRadius.circular(10),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 4),
           Text(
-            label,
+            'Vùng kinh tế',
             style: TextStyle(
-              color: color,
-              fontSize: 9,
+              color: Colors.white.withValues(alpha: 0.8),
+              fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
           ),
+          const SizedBox(height: 8),
+          ...regions.map((region) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: colorForRegion(region),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      regionNames[region] ?? region,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.8),
+                        fontSize: 11,
+                      ),
+                      maxLines: 2,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
         ],
       ),
     );

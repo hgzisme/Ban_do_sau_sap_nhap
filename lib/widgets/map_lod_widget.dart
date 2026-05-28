@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show setEquals;
@@ -10,6 +11,7 @@ import '../models/geo_bounds.dart';
 import '../models/map_detail_level.dart';
 import '../models/map_focus_request.dart';
 import '../repositories/map_repository.dart';
+import 'map_style.dart' show colorForRegion;
 
 
 /// Google Maps-style LOD map: provinces at low zoom, viewport-filtered communes
@@ -18,16 +20,16 @@ class MapLodWidget extends StatefulWidget {
   final MapRepository repository;
   final ValueChanged<AdminUnit?> onSelectionChanged;
   final ValueChanged<MapDetailState>? onDetailStateChanged;
-  final ColorMode colorMode;
   final MapFocusRequest? focusRequest;
   final AdminUnit? selectedUnit;
+  final MapDataMode dataMode;
 
   const MapLodWidget({
     super.key,
     required this.repository,
+    required this.dataMode,
     required this.onSelectionChanged,
     this.onDetailStateChanged,
-    this.colorMode = ColorMode.byType,
     this.focusRequest,
     this.selectedUnit,
   });
@@ -57,6 +59,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
 
   Timer? _gestureDebounce;
   MapShapeSource? _provinceSourceCache;
+  MapDataMode? _provinceSourceCacheMode;
   final Map<String, MapShapeSource> _communeSourceCache = {};
   int? _lastAppliedFocusToken;
 
@@ -225,12 +228,6 @@ class _MapLodWidgetState extends State<MapLodWidget> {
     @override
     void didUpdateWidget(MapLodWidget oldWidget) {
       super.didUpdateWidget(oldWidget);
-      if (oldWidget.colorMode != widget.colorMode) {
-        _provinceSourceCache = null;
-        _provinceSourceCacheKey = null;
-        _communeSourceCache.clear();
-        setState(() {});
-      }
       if (widget.focusRequest != null &&
           widget.focusRequest!.token != _lastAppliedFocusToken) {
         final request = widget.focusRequest!;
@@ -400,20 +397,17 @@ class _MapLodWidgetState extends State<MapLodWidget> {
   }
 
   MapShapeSource _buildProvinceSource() {
-    final cacheKey = widget.colorMode.name;
-    if (_provinceSourceCache != null &&
-        _provinceSourceCacheKey == cacheKey) {
+    if (_provinceSourceCache != null && _provinceSourceCacheMode == widget.dataMode) {
       return _provinceSourceCache!;
     }
-    _provinceSourceCacheKey = cacheKey;
+
+    _provinceSourceCacheMode = widget.dataMode;
     _provinceSourceCache = _buildMemoryShapeSource(
       _provinces,
       widget.repository.provinceGeoJsonBytes,
     );
     return _provinceSourceCache!;
   }
-
-  String? _provinceSourceCacheKey;
 
   MapShapeSource _buildCommuneSource() {
     if (_visibleCommunes.isEmpty || _communeGeoJsonBytes == null) {
@@ -424,8 +418,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
       );
     }
 
-    final cacheKey =
-        '${widget.colorMode.name}:${widget.repository.cacheKeyForProvinces(_visibleParentMas)}';
+    final cacheKey = '${widget.repository.cacheKeyForProvinces(_visibleParentMas)}_${widget.dataMode.name}';
     final cached = _communeSourceCache[cacheKey];
     if (cached != null) return cached;
 
@@ -438,44 +431,70 @@ class _MapLodWidgetState extends State<MapLodWidget> {
     List<AdminUnit> data,
     Uint8List geoJsonBytes,
   ) {
-    if (widget.colorMode == ColorMode.byRegion) {
-      return _buildRegionMemorySource(data, geoJsonBytes);
+    // If no mode, return transparent without mappers
+    if (widget.dataMode == MapDataMode.none) {
+      return MapShapeSource.memory(
+        geoJsonBytes,
+        shapeDataField: 'ma',
+        dataCount: data.length,
+        primaryValueMapper: (int index) => data[index].ma ?? 'unknown',
+        shapeColorValueMapper: (int index) => Colors.transparent,
+      );
     }
-    return _buildTypeMemorySource(data, geoJsonBytes);
-  }
 
+    // Handle population, density, and area mode
+    final isDensity = widget.dataMode == MapDataMode.density;
+    final isArea = widget.dataMode == MapDataMode.area;
+    final maxVal = isDensity 
+        ? widget.repository.maxProvinceDensity 
+        : (isArea ? widget.repository.maxProvinceArea : widget.repository.maxProvincePopulation.toDouble());
+    final minVal = isDensity 
+        ? widget.repository.minProvinceDensity 
+        : (isArea ? widget.repository.minProvinceArea : widget.repository.minProvincePopulation.toDouble());
+    final range = (maxVal - minVal).clamp(1.0, double.infinity); // prevent div/0
 
-  MapShapeSource _buildTypeMemorySource(
-    List<AdminUnit> data,
-    Uint8List geoJsonBytes,
-  ) {
     return MapShapeSource.memory(
       geoJsonBytes,
       shapeDataField: 'ma',
       dataCount: data.length,
       primaryValueMapper: (int index) => data[index].ma ?? 'unknown',
-      shapeColorValueMapper: (int index) => 'transparent',
-      shapeColorMappers: const [
-        MapColorMapper(value: 'transparent', color: Colors.transparent),
-      ],
+      shapeColorValueMapper: (int index) {
+        final isArea = widget.dataMode == MapDataMode.area;
+        final isMacroRegion = widget.dataMode == MapDataMode.macroRegion;
+        
+        if (isMacroRegion) {
+          return colorForRegion(data[index].macroRegion);
+        }
+
+        final val = isDensity 
+            ? data[index].matDo 
+            : (isArea ? data[index].dienTichKm2 : data[index].danSo.toDouble());
+        
+        double ratio;
+        if (isDensity) {
+          final logMin = math.log(minVal <= 0 ? 1 : minVal);
+          final logMax = math.log(maxVal <= 0 ? 1 : maxVal);
+          final logRange = (logMax - logMin).clamp(0.001, double.infinity);
+          final logVal = math.log(val <= 0 ? 1 : val);
+          ratio = ((logVal - logMin) / logRange).clamp(0.0, 1.0);
+        } else {
+          ratio = ((val - minVal) / range).clamp(0.0, 1.0);
+        }
+        
+        // alpha from 20% (51) to 100% (255)
+        final alpha = 51 + (204 * ratio).round();
+        if (isDensity) {
+          return Color.fromARGB(alpha, 255, 152, 0); // OrangeAccent
+        } else if (isArea) {
+          return Color.fromARGB(alpha, 224, 64, 251); // PurpleAccent
+        } else {
+          return Color.fromARGB(alpha, 0, 230, 118); // GreenAccent
+        }
+      },
     );
   }
 
-  MapShapeSource _buildRegionMemorySource(
-    List<AdminUnit> data,
-    Uint8List geoJsonBytes,
-  ) {
-    return MapShapeSource.memory(
-      geoJsonBytes,
-      shapeDataField: 'ma',
-      dataCount: data.length,
-      primaryValueMapper: (int index) => data[index].ma ?? 'unknown',
-      shapeColorValueMapper: (int index) => 'transparent',
-      shapeColorMappers: const [
-        MapColorMapper(value: 'transparent', color: Colors.transparent),
-      ],
-    );
-  }
+
 
   void _commitZoomLevel(double value) {
     final clamped = _clampZoom(value);
@@ -546,7 +565,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
                 child: SfMaps(
                   layers: [
                     MapShapeLayer(
-                      key: ValueKey('provinces-${widget.colorMode.name}'),
+                      key: const ValueKey('provinces_layer'),
                       controller: _layerController,
                       source: _buildProvinceSource(),
                       zoomPanBehavior: _zoomPanBehavior,
@@ -654,7 +673,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
             ),
             Positioned(
               right: 16,
-              bottom: 100,
+              top: 60,
               child: _ZoomControls(
                 zoomNotifier: _zoomNotifier,
                 onCommitZoom: _commitZoomLevel,
@@ -849,7 +868,7 @@ class _IslandMarker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    Widget content = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
@@ -886,5 +905,50 @@ class _IslandMarker extends StatelessWidget {
         ),
       ],
     );
+
+    return CustomPaint(
+      painter: _DashedBorderPainter(color: Colors.white38, strokeWidth: 1.2, gap: 4.0),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+        child: content,
+      ),
+    );
+  }
+}
+
+class _DashedBorderPainter extends CustomPainter {
+  final Color color;
+  final double strokeWidth;
+  final double gap;
+
+  _DashedBorderPainter({this.color = Colors.white54, this.strokeWidth = 1.0, this.gap = 4.0});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke;
+
+    final path = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
+    final pathMetrics = path.computeMetrics();
+    final Path dashedPath = Path();
+    for (final pathMetric in pathMetrics) {
+      double distance = 0.0;
+      while (distance < pathMetric.length) {
+        dashedPath.addPath(
+          pathMetric.extractPath(distance, distance + gap),
+          Offset.zero,
+        );
+        distance += gap * 2;
+      }
+    }
+    
+    canvas.drawPath(dashedPath, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedBorderPainter oldDelegate) {
+    return oldDelegate.color != color || oldDelegate.strokeWidth != strokeWidth || oldDelegate.gap != gap;
   }
 }

@@ -28,21 +28,21 @@ const List<String> typeLegendOrder = [
 ];
 
 const Map<String, Color> regionColors = {
-  'northern_midlands': Color(0xFF66BB6A),
-  'red_river_delta': Color(0xFFEF5350),
-  'central_coast': Color(0xFF26A69A),
-  'central_highlands': Color(0xFFAB47BC),
-  'southeast': Color(0xFFFF7043),
-  'mekong_delta': Color(0xFF42A5F5),
+  'northern_midlands': Color(0xFF1F4E79),
+  'central_coast': Color(0xFFC57B15),
+  'red_river_delta': Color(0xFF4C8A14),
+  'mekong_delta': Color(0xFF79BA13),
+  'southeast': Color(0xFF000000),
+  'central_highlands': Color(0xFF7A4F32),
 };
 
 const Map<String, String> regionNames = {
-  'northern_midlands': 'Trung du & miền núi Bắc',
-  'red_river_delta': 'Đồng bằng Sông Hồng',
-  'central_coast': 'Bắc Trung Bộ & Duyên hải',
-  'central_highlands': 'Tây Nguyên',
+  'northern_midlands': 'Trung du và miền núi phía Bắc',
+  'central_coast': 'Bắc Trung Bộ & Duyên hải miền Trung',
+  'red_river_delta': 'Đồng bằng sông Hồng',
+  'mekong_delta': 'Đồng bằng sông Cửu Long',
   'southeast': 'Đông Nam Bộ',
-  'mekong_delta': 'Đồng bằng Sông Cửu Long',
+  'central_highlands': 'Tây Nguyên',
 };
 
 Color colorForCategory(String cap) {
