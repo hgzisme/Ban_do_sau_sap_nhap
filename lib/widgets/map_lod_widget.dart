@@ -18,20 +18,16 @@ import 'map_style.dart' show colorForRegion;
 /// at high zoom. Province base layer handles pan; communes render as sublayer.
 class MapLodWidget extends StatefulWidget {
   final MapRepository repository;
-  final ValueChanged<AdminUnit?> onSelectionChanged;
-  final ValueChanged<MapDetailState>? onDetailStateChanged;
-  final MapFocusRequest? focusRequest;
-  final AdminUnit? selectedUnit;
   final MapDataMode dataMode;
+  final ValueChanged<AdminUnit?> onSelectionChanged;
+  final ValueChanged<MapDetailState> onDetailStateChanged;
 
   const MapLodWidget({
     super.key,
     required this.repository,
-    required this.dataMode,
+    this.dataMode = MapDataMode.none,
     required this.onSelectionChanged,
-    this.onDetailStateChanged,
-    this.focusRequest,
-    this.selectedUnit,
+    required this.onDetailStateChanged,
   });
 
   @override
@@ -54,7 +50,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
 
   Set<String> _visibleParentMas = {};
   List<AdminUnit> _visibleCommunes = [];
-  Uint8List? _communeGeoJsonBytes;
+  String? _communeGeoJson;
   bool _isRefreshingCommunes = false;
 
   Timer? _gestureDebounce;
@@ -192,7 +188,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
     );
   }
 
-  ({Set<String> parentMas, List<AdminUnit> communes, Uint8List geoJsonBytes})?
+  ({Set<String> parentMas, List<AdminUnit> communes, String geoJson})?
   _computeCommuneViewportData() {
     final parentMas = _resolveProvinceMasForCommunes();
     if (parentMas.isEmpty) return null;
@@ -200,7 +196,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
     return (
       parentMas: parentMas,
       communes: widget.repository.communesForProvinces(parentMas),
-      geoJsonBytes: widget.repository.buildCommuneGeoJsonBytes(parentMas),
+      geoJson: widget.repository.buildCommuneGeoJson(parentMas),
     );
   }
 
@@ -225,57 +221,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
       });
     }
 
-    @override
-    void didUpdateWidget(MapLodWidget oldWidget) {
-      super.didUpdateWidget(oldWidget);
-      if (widget.focusRequest != null &&
-          widget.focusRequest!.token != _lastAppliedFocusToken) {
-        final request = widget.focusRequest!;
-        _lastAppliedFocusToken = request.token;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _applyFocusRequest(request);
-        });
-      }
-    }
 
-    void _applyFocusRequest(MapFocusRequest request) {
-      final unit = request.unit;
-      final level = widget.repository.levelForUnit(unit);
-      final bounds = widget.repository.boundsForUnit(unit);
-      if (bounds == null) return;
-
-      if (level == MapDetailLevel.communes) {
-        final parentMa = unit.parentMa;
-        if (parentMa == null || parentMa.isEmpty) return;
-
-        final parentMas = {parentMa};
-        setState(() {
-          _detailLevel = MapDetailLevel.communes;
-          _visibleParentMas = parentMas;
-          _visibleCommunes = widget.repository.communesForProvinces(parentMas);
-          _communeGeoJsonBytes = widget.repository.buildCommuneGeoJsonBytes(parentMas);
-          _isRefreshingCommunes = false;
-        });
-        _notifyDetailState();
-      } else {
-        setState(() {
-          _detailLevel = MapDetailLevel.provinces;
-          _visibleParentMas = {};
-          _visibleCommunes = [];
-          _communeGeoJsonBytes = null;
-          _isRefreshingCommunes = false;
-        });
-        _notifyDetailState();
-      }
-
-      widget.onSelectionChanged(unit);
-
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _refreshCameraFromController();
-        _scheduleGestureSettled();
-      });
-    }
 
     @override
     void dispose() {
@@ -333,7 +279,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
         _detailLevel = MapDetailLevel.communes;
         _visibleParentMas = data.parentMas;
         _visibleCommunes = data.communes;
-        _communeGeoJsonBytes = data.geoJsonBytes;
+        _communeGeoJson = data.geoJson;
         _isRefreshingCommunes = false;
       });
       widget.onSelectionChanged(null);
@@ -347,7 +293,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
       _detailLevel = MapDetailLevel.provinces;
       _visibleParentMas = {};
       _visibleCommunes = [];
-      _communeGeoJsonBytes = null;
+      _communeGeoJson = null;
       _isRefreshingCommunes = false;
     });
     widget.onSelectionChanged(null);
@@ -385,7 +331,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
   }
 
   void _notifyDetailState() {
-    widget.onDetailStateChanged?.call(
+    widget.onDetailStateChanged(
       MapDetailState(
         level: _detailLevel,
         visibleUnitCount: _detailLevel == MapDetailLevel.provinces
@@ -404,13 +350,13 @@ class _MapLodWidgetState extends State<MapLodWidget> {
     _provinceSourceCacheMode = widget.dataMode;
     _provinceSourceCache = _buildMemoryShapeSource(
       _provinces,
-      widget.repository.provinceGeoJsonBytes,
+      widget.repository.provinceGeoJson,
     );
     return _provinceSourceCache!;
   }
 
   MapShapeSource _buildCommuneSource() {
-    if (_visibleCommunes.isEmpty || _communeGeoJsonBytes == null) {
+    if (_visibleCommunes.isEmpty || _communeGeoJson == null) {
       // Provide a tiny invisible dummy polygon inside Vietnam to prevent Syncfusion bounds calculation crashes on empty layers
       const dummyGeoJson = '{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[105.0,15.0],[105.0,15.0001],[105.0001,15.0001],[105.0,15.0]]]},"properties":{}}]}';
       return MapShapeSource.memory(
@@ -422,19 +368,20 @@ class _MapLodWidgetState extends State<MapLodWidget> {
     final cached = _communeSourceCache[cacheKey];
     if (cached != null) return cached;
 
-    final source = _buildMemoryShapeSource(_visibleCommunes, _communeGeoJsonBytes!);
+    final geoJson = _communeGeoJson ?? '{"type":"FeatureCollection","features":[]}';
+    final source = _buildMemoryShapeSource(_visibleCommunes, geoJson);
     _communeSourceCache[cacheKey] = source;
     return source;
   }
 
   MapShapeSource _buildMemoryShapeSource(
     List<AdminUnit> data,
-    Uint8List geoJsonBytes,
+    String geoJson,
   ) {
     // If no mode, return transparent without mappers
     if (widget.dataMode == MapDataMode.none) {
       return MapShapeSource.memory(
-        geoJsonBytes,
+        Uint8List.fromList(utf8.encode(geoJson)),
         shapeDataField: 'ma',
         dataCount: data.length,
         primaryValueMapper: (int index) => data[index].ma ?? 'unknown',
@@ -454,7 +401,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
     final range = (maxVal - minVal).clamp(1.0, double.infinity); // prevent div/0
 
     return MapShapeSource.memory(
-      geoJsonBytes,
+      Uint8List.fromList(utf8.encode(geoJson)),
       shapeDataField: 'ma',
       dataCount: data.length,
       primaryValueMapper: (int index) => data[index].ma ?? 'unknown',
@@ -532,7 +479,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
 
     final showCommuneOverlay = _detailLevel == MapDetailLevel.communes &&
         _visibleCommunes.isNotEmpty &&
-        _communeGeoJsonBytes != null;
+        _communeGeoJson != null;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -576,13 +523,11 @@ class _MapLodWidgetState extends State<MapLodWidget> {
                         alpha: showCommuneOverlay ? 0.12 : 0.22,
                       ),
                       strokeWidth: showCommuneOverlay ? 0.5 : 0.8,
-                      selectedIndex: widget.selectedUnit != null && widget.repository.levelForUnit(widget.selectedUnit!) == MapDetailLevel.provinces
-                          ? _provinces.indexWhere((p) => p.ma == widget.selectedUnit!.ma)
-                          : -1,
+                      selectedIndex: -1,
                       selectionSettings: const MapSelectionSettings(
-                        color: Color(0xAAFF9800), // Hot orange
-                        strokeColor: Color(0xFFFF5722), // Deep orange border
-                        strokeWidth: 3.5,
+                        color: Color(0xBB00E5FF), // Teal
+                        strokeColor: Color(0xFF00E5FF),
+                        strokeWidth: 3.0,
                       ),
                       onSelectionChanged: showCommuneOverlay
                           ? null
@@ -594,17 +539,13 @@ class _MapLodWidgetState extends State<MapLodWidget> {
                       sublayers: [
                         MapShapeSublayer(
                           source: _buildCommuneSource(),
-                          strokeColor: showCommuneOverlay 
-                              ? Colors.white.withValues(alpha: 0.55)
-                              : Colors.transparent,
-                          strokeWidth: showCommuneOverlay ? 1.0 : 0.0,
-                          selectedIndex: widget.selectedUnit != null && widget.repository.levelForUnit(widget.selectedUnit!) == MapDetailLevel.communes
-                              ? _visibleCommunes.indexWhere((c) => c.ma == widget.selectedUnit!.ma)
-                              : -1,
+                          strokeColor: Colors.white.withValues(alpha: 0.55),
+                          strokeWidth: 1.0,
+                          selectedIndex: -1,
                           selectionSettings: const MapSelectionSettings(
-                            color: Color(0xAAFF9800),
-                            strokeColor: Color(0xFFFF5722),
-                            strokeWidth: 3.5,
+                            color: Color(0xBB00E5FF),
+                            strokeColor: Color(0xFF00E5FF),
+                            strokeWidth: 3.0,
                           ),
                           onSelectionChanged: showCommuneOverlay
                               ? (int index) {
@@ -618,8 +559,8 @@ class _MapLodWidgetState extends State<MapLodWidget> {
                               : null,
                         ),
                       ],
-                      initialMarkersCount: 2 + (widget.selectedUnit != null && widget.repository.levelForUnit(widget.selectedUnit!) == MapDetailLevel.communes ? 1 : 0),
-                      markerBuilder: (BuildContext context, int index) {
+                      initialMarkersCount: showCommuneOverlay ? 0 : 2,
+                      markerBuilder: showCommuneOverlay ? null : (BuildContext context, int index) {
                         if (index == 0) {
                           return const MapMarker(
                             latitude: 16.5,
@@ -639,29 +580,10 @@ class _MapLodWidgetState extends State<MapLodWidget> {
                           );
                         }
                         
-                        return MapMarker(
-                          latitude: _zoomPanBehavior.focalLatLng?.latitude ?? 16.0,
-                          longitude: _zoomPanBehavior.focalLatLng?.longitude ?? 106.0,
-                          alignment: Alignment.center,
-                          size: const Size(40, 40),
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              Container(
-                                width: 30,
-                                height: 30,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: const Color(0xFF00E5FF).withValues(alpha: 0.3),
-                                ),
-                              ),
-                              const Icon(
-                                Icons.location_on,
-                                color: Color(0xFF00E5FF),
-                                size: 24,
-                              ),
-                            ],
-                          ),
+                        return const MapMarker(
+                          latitude: 0,
+                          longitude: 0,
+                          child: SizedBox(),
                         );
                       },
                       // No legend since map has no colors

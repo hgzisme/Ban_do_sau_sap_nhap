@@ -1,13 +1,10 @@
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'dart:typed_data';
 import 'package:flutter/services.dart' show rootBundle;
-import 'package:flutter/foundation.dart' show compute;
 import '../models/admin_unit.dart';
 import '../models/geo_bounds.dart';
 import '../models/map_detail_level.dart';
-import '../models/search_result.dart';
 
 /// Enum for the two geographic data layers.
 enum MapLayer {
@@ -53,7 +50,7 @@ class MapRepository {
   Map<String, GeoBounds> _communeBoundsByMa = {};
   Map<String, List<AdminUnit>> _communesByParentMa = {};
   Map<String, List<String>> _rawFeatureStringsByParentMa = {};
-  Uint8List? _provinceGeoJsonBytes;
+  String? _provinceGeoJson;
 
   MapLayer _activeLayer = MapLayer.provinces;
   MapLayer get activeLayer => _activeLayer;
@@ -61,8 +58,8 @@ class MapRepository {
   List<AdminUnit> get provinces => _provinces;
   List<AdminUnit> get communes => _communes;
   Map<String, GeoBounds> get provinceBounds => _provinceBounds;
-  Uint8List get provinceGeoJsonBytes =>
-      _provinceGeoJsonBytes ?? Uint8List.fromList(utf8.encode('{"type":"FeatureCollection","features":[]}'));
+  String get provinceGeoJson =>
+      _provinceGeoJson ?? '{"type":"FeatureCollection","features":[]}';
   bool get communesIndexed => _communesByParentMa.isNotEmpty;
 
   int maxProvincePopulation = 0;
@@ -76,15 +73,32 @@ class MapRepository {
       _activeLayer == MapLayer.provinces ? _provinces : _communes;
 
   String get activeAssetPath => _activeLayer == MapLayer.provinces
-      ? 'assets/provinces_simplified.geojson'
-      : 'assets/communes_simplified.json';
+      ? 'assets/provinces.geojson'
+      : 'assets/communes.json';
 
   Future<List<AdminUnit>> loadData() async {
-    final raw = await rootBundle.loadString('assets/provinces_simplified.geojson');
-    final result = await compute(_parseProvincesIsolate, raw);
-    _provinces = result.units;
-    _provinceBounds = result.boundsByMa;
-    _provinceGeoJsonBytes = result.geoJsonBytes;
+    final raw = await rootBundle.loadString('assets/provinces.geojson');
+    final Map<String, dynamic> geoJson = json.decode(raw);
+    final List features = geoJson['features'] as List;
+
+    _provinces = [];
+    _provinceBounds = {};
+    for (final feature in features) {
+      final map = feature as Map<String, dynamic>;
+      final props = map['properties'] as Map<String, dynamic>;
+      final unit = AdminUnit.fromJson(props);
+      _provinces.add(unit);
+
+      final ma = props['ma']?.toString();
+      if (ma != null && ma.isNotEmpty) {
+        final geometry = map['geometry'];
+        if (geometry != null) {
+          _provinceBounds[ma] = _boundsFromGeometry(geometry);
+        }
+      }
+    }
+
+    _provinceGeoJson = raw;
     _activeLayer = MapLayer.provinces;
     
     if (_provinces.isNotEmpty) {
@@ -101,12 +115,30 @@ class MapRepository {
 
   Future<List<AdminUnit>> preloadCommunes() async {
     if (_communes.isNotEmpty) return _communes;
-    final raw = await rootBundle.loadString('assets/communes_simplified.json');
-    final result = await compute(_parseCommunesIsolate, raw);
-    _communes = result.units;
-    _communesByParentMa = result.communesByParentMa;
-    _rawFeatureStringsByParentMa = result.rawFeatureStringsByParentMa;
-    _communeBoundsByMa = result.boundsByMa;
+    final raw = await rootBundle.loadString('assets/communes.json');
+    final Map<String, dynamic> geoJson = json.decode(raw);
+    final List features = geoJson['features'] as List;
+
+    for (final feature in features) {
+      final map = Map<String, dynamic>.from(feature as Map);
+      final props = map['properties'] as Map<String, dynamic>;
+      final unit = AdminUnit.fromJson(props);
+      _communes.add(unit);
+
+      final ma = props['ma']?.toString();
+      if (ma != null && ma.isNotEmpty) {
+        final geometry = map['geometry'];
+        if (geometry != null) {
+          _communeBoundsByMa[ma] = _boundsFromGeometry(geometry);
+        }
+      }
+
+      final parentMa = props['parent_ma']?.toString();
+      if (parentMa == null || parentMa.isEmpty) continue;
+
+      _communesByParentMa.putIfAbsent(parentMa, () => []).add(unit);
+      _rawFeatureStringsByParentMa.putIfAbsent(parentMa, () => []).add(json.encode(map));
+    }
     return _communes;
   }
 
@@ -194,7 +226,7 @@ class MapRepository {
     return result;
   }
 
-  Uint8List buildCommuneGeoJsonBytes(Set<String> parentMas) {
+  String buildCommuneGeoJson(Set<String> parentMas) {
     final buffer = StringBuffer();
     buffer.write('{"type":"FeatureCollection","features":[');
     bool first = true;
@@ -209,7 +241,7 @@ class MapRepository {
       }
     }
     buffer.write(']}');
-    return Uint8List.fromList(utf8.encode(buffer.toString()));
+    return buffer.toString();
   }
 
   String cacheKeyForProvinces(Set<String> parentMas) {
@@ -264,97 +296,7 @@ class MapRepository {
     return _provinceBounds[ma];
   }
   
-  static String removeDiacritics(String str) {
-    const withDiacritics =
-        'áàãảạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđÁÀÃẢẠĂẮẰẲẴẶÂẤẦẨẪẬÉÈẺẼẸÊẾỀỂỄỆÍÌỈĨỊÓÒỎÕỌÔỐỒỔỖỘƠỚỜỞỠỢÚÙỦŨỤƯỨỪỬỮỰÝỲỶỸỴĐ';
-    const withoutDiacritics =
-        'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyydAAAAAAAAAAAAAAAAAEEEEEEEEEEEIIIIIOOOOOOOOOOOOOOOOOUUUUUUUUUUUYYYYYD';
-    for (int i = 0; i < withDiacritics.length; i++) {
-      str = str.replaceAll(withDiacritics[i], withoutDiacritics[i]);
-    }
-    return str;
-  }
 
-  List<SearchResult> searchUnits(String query, {int limit = 20}) {
-    final trimmed = query.trim();
-    if (trimmed.isEmpty) return const [];
-
-    final q = removeDiacritics(trimmed.toLowerCase());
-    final scored = <_ScoredSearchResult>[];
-
-    void consider(AdminUnit unit, MapDetailLevel level) {
-      final originalName = unit.ten.toLowerCase();
-      final name = removeDiacritics(originalName);
-      if (name.startsWith(q) || originalName.startsWith(q)) {
-        scored.add(
-          _ScoredSearchResult(
-            unit: unit,
-            level: level,
-            matchKind: SearchMatchKind.name,
-            matchLabel: unit.ten,
-            rank: 0,
-          ),
-        );
-        return;
-      }
-      if (name.contains(q) || originalName.contains(q)) {
-        scored.add(
-          _ScoredSearchResult(
-            unit: unit,
-            level: level,
-            matchKind: SearchMatchKind.name,
-            matchLabel: unit.ten,
-            rank: 1,
-          ),
-        );
-        return;
-      }
-
-      final predecessors = unit.predecessors;
-      if (predecessors != null) {
-        final origPred = predecessors.toLowerCase();
-        final pred = removeDiacritics(origPred);
-        if (pred.contains(q) || origPred.contains(q)) {
-          scored.add(
-          _ScoredSearchResult(
-            unit: unit,
-            level: level,
-            matchKind: SearchMatchKind.predecessor,
-            matchLabel: predecessors,
-            rank: 2,
-          ),
-        );
-        }
-      }
-    }
-
-    for (final unit in _provinces) {
-      consider(unit, MapDetailLevel.provinces);
-    }
-    for (final unit in _communes) {
-      consider(unit, MapDetailLevel.communes);
-    }
-
-    scored.sort((a, b) {
-      final rankCompare = a.rank.compareTo(b.rank);
-      if (rankCompare != 0) return rankCompare;
-      final levelCompare = a.level.index.compareTo(b.level.index);
-      if (levelCompare != 0) return levelCompare;
-      return a.unit.ten.compareTo(b.unit.ten);
-    });
-
-    return scored
-        .take(limit)
-        .map(
-          (entry) => SearchResult(
-            unit: entry.unit,
-            level: entry.level,
-            matchKind: entry.matchKind,
-            matchLabel: entry.matchLabel,
-          ),
-        )
-        .toList();
-  }
 
   double tongDienTich([List<AdminUnit>? subset]) {
     final list = subset ?? activeUnits;
@@ -379,109 +321,6 @@ double _squaredDistance(double lat1, double lng1, double lat2, double lng2) {
   return dLat * dLat + dLng * dLng;
 }
 
-class _ProvinceParseResult {
-  final List<AdminUnit> units;
-  final Map<String, GeoBounds> boundsByMa;
-  final Uint8List geoJsonBytes;
-
-  const _ProvinceParseResult(this.units, this.boundsByMa, this.geoJsonBytes);
-}
-
-class _CommuneParseResult {
-  final List<AdminUnit> units;
-  final Map<String, List<AdminUnit>> communesByParentMa;
-  final Map<String, List<String>> rawFeatureStringsByParentMa;
-  final Map<String, GeoBounds> boundsByMa;
-
-  const _CommuneParseResult(
-    this.units,
-    this.communesByParentMa,
-    this.rawFeatureStringsByParentMa,
-    this.boundsByMa,
-  );
-}
-
-class _ScoredSearchResult {
-  final AdminUnit unit;
-  final MapDetailLevel level;
-  final SearchMatchKind matchKind;
-  final String matchLabel;
-  final int rank;
-
-  const _ScoredSearchResult({
-    required this.unit,
-    required this.level,
-    required this.matchKind,
-    required this.matchLabel,
-    required this.rank,
-  });
-}
-
-_ProvinceParseResult _parseProvincesIsolate(String raw) {
-  raw = raw.replaceAll(': NaN', ': null');
-  final Uint8List geoJsonBytes = Uint8List.fromList(utf8.encode(raw));
-  final Map<String, dynamic> geoJson = json.decode(raw);
-  final List features = geoJson['features'] as List;
-
-  final units = <AdminUnit>[];
-  final boundsByMa = <String, GeoBounds>{};
-
-  for (final feature in features) {
-    final map = feature as Map<String, dynamic>;
-    final props = map['properties'] as Map<String, dynamic>;
-    final unit = AdminUnit.fromJson(props);
-    units.add(unit);
-
-    final ma = props['ma']?.toString();
-    if (ma != null && ma.isNotEmpty) {
-      final geometry = map['geometry'];
-      if (geometry != null) {
-        boundsByMa[ma] = _boundsFromGeometry(geometry);
-      }
-    }
-  }
-
-  return _ProvinceParseResult(units, boundsByMa, geoJsonBytes);
-}
-
-_CommuneParseResult _parseCommunesIsolate(String raw) {
-  raw = raw.replaceAll(': NaN', ': null');
-  final Map<String, dynamic> geoJson = json.decode(raw);
-  final List features = geoJson['features'] as List;
-
-  final units = <AdminUnit>[];
-  final communesByParentMa = <String, List<AdminUnit>>{};
-  final rawFeatureStringsByParentMa = <String, List<String>>{};
-  final boundsByMa = <String, GeoBounds>{};
-
-  for (final feature in features) {
-    final map = Map<String, dynamic>.from(feature as Map);
-    final props = map['properties'] as Map<String, dynamic>;
-    final unit = AdminUnit.fromJson(props);
-    units.add(unit);
-
-    final ma = props['ma']?.toString();
-    if (ma != null && ma.isNotEmpty) {
-      final geometry = map['geometry'];
-      if (geometry != null) {
-        boundsByMa[ma] = _boundsFromGeometry(geometry);
-      }
-    }
-
-    final parentMa = props['parent_ma']?.toString();
-    if (parentMa == null || parentMa.isEmpty) continue;
-
-    communesByParentMa.putIfAbsent(parentMa, () => []).add(unit);
-    rawFeatureStringsByParentMa.putIfAbsent(parentMa, () => []).add(json.encode(map));
-  }
-
-  return _CommuneParseResult(
-    units,
-    communesByParentMa,
-    rawFeatureStringsByParentMa,
-    boundsByMa,
-  );
-}
 
 GeoBounds _boundsFromGeometry(dynamic geometry) {
   final coords = (geometry as Map<String, dynamic>)['coordinates'];
