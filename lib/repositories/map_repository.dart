@@ -435,6 +435,80 @@ class _ScoredSearchResult {
 }
 
 
+<<<<<<< HEAD
+=======
+  final units = <AdminUnit>[];
+  final boundsByMa = <String, GeoBounds>{};
+
+  for (final feature in features) {
+    final map = feature as Map<String, dynamic>;
+    final props = map['properties'] as Map<String, dynamic>;
+
+    final ma = props['ma']?.toString();
+    double? centerLat;
+    double? centerLng;
+    if (ma != null && ma.isNotEmpty) {
+      final geometry = map['geometry'];
+      if (geometry != null) {
+        final bounds = _boundsFromGeometry(geometry);
+        boundsByMa[ma] = bounds;
+        centerLat = (bounds.south + bounds.north) / 2;
+        centerLng = (bounds.west + bounds.east) / 2;
+      }
+    }
+
+    final unit = AdminUnit.fromJson(props, centerLat: centerLat, centerLng: centerLng);
+    units.add(unit);
+  }
+
+  return _ProvinceParseResult(units, boundsByMa, geoJsonBytes);
+}
+
+_CommuneParseResult _parseCommunesIsolate(String raw) {
+  raw = raw.replaceAll(': NaN', ': null');
+  final Map<String, dynamic> geoJson = json.decode(raw);
+  final List features = geoJson['features'] as List;
+
+  final units = <AdminUnit>[];
+  final communesByParentMa = <String, List<AdminUnit>>{};
+  final rawFeatureStringsByParentMa = <String, List<String>>{};
+  final boundsByMa = <String, GeoBounds>{};
+
+  for (final feature in features) {
+    final map = Map<String, dynamic>.from(feature as Map);
+    final props = map['properties'] as Map<String, dynamic>;
+
+    final ma = props['ma']?.toString();
+    double? centerLat;
+    double? centerLng;
+    if (ma != null && ma.isNotEmpty) {
+      final geometry = map['geometry'];
+      if (geometry != null) {
+        final bounds = _boundsFromGeometry(geometry);
+        boundsByMa[ma] = bounds;
+        centerLat = (bounds.south + bounds.north) / 2;
+        centerLng = (bounds.west + bounds.east) / 2;
+      }
+    }
+
+    final unit = AdminUnit.fromJson(props, centerLat: centerLat, centerLng: centerLng);
+    units.add(unit);
+
+    final parentMa = props['parent_ma']?.toString();
+    if (parentMa == null || parentMa.isEmpty) continue;
+
+    communesByParentMa.putIfAbsent(parentMa, () => []).add(unit);
+    rawFeatureStringsByParentMa.putIfAbsent(parentMa, () => []).add(json.encode(map));
+  }
+
+  return _CommuneParseResult(
+    units,
+    communesByParentMa,
+    rawFeatureStringsByParentMa,
+    boundsByMa,
+  );
+}
+>>>>>>> dev-thu-phu
 
 GeoBounds _boundsFromGeometry(dynamic geometry) {
   final coords = (geometry as Map<String, dynamic>)['coordinates'];
