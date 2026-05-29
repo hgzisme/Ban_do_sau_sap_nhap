@@ -87,16 +87,22 @@ class MapRepository {
     for (final feature in features) {
       final map = feature as Map<String, dynamic>;
       final props = map['properties'] as Map<String, dynamic>;
-      final unit = AdminUnit.fromJson(props);
-      _provinces.add(unit);
 
       final ma = props['ma']?.toString();
+      double? centerLat;
+      double? centerLng;
       if (ma != null && ma.isNotEmpty) {
         final geometry = map['geometry'];
         if (geometry != null) {
-          _provinceBounds[ma] = _boundsFromGeometry(geometry);
+          final bounds = _boundsFromGeometry(geometry);
+          _provinceBounds[ma] = bounds;
+          centerLat = (bounds.south + bounds.north) / 2;
+          centerLng = (bounds.west + bounds.east) / 2;
         }
       }
+
+      final unit = AdminUnit.fromJson(props, centerLat: centerLat, centerLng: centerLng);
+      _provinces.add(unit);
     }
 
     _provinceGeoJson = raw;
@@ -126,16 +132,22 @@ class MapRepository {
     for (final feature in features) {
       final map = Map<String, dynamic>.from(feature as Map);
       final props = map['properties'] as Map<String, dynamic>;
-      final unit = AdminUnit.fromJson(props);
-      _communes.add(unit);
 
       final ma = props['ma']?.toString();
+      double? centerLat;
+      double? centerLng;
       if (ma != null && ma.isNotEmpty) {
         final geometry = map['geometry'];
         if (geometry != null) {
-          _communeBoundsByMa[ma] = _boundsFromGeometry(geometry);
+          final bounds = _boundsFromGeometry(geometry);
+          _communeBoundsByMa[ma] = bounds;
+          centerLat = (bounds.south + bounds.north) / 2;
+          centerLng = (bounds.west + bounds.east) / 2;
         }
       }
+
+      final unit = AdminUnit.fromJson(props, centerLat: centerLat, centerLng: centerLng);
+      _communes.add(unit);
 
       final parentMa = props['parent_ma']?.toString();
       if (parentMa == null || parentMa.isEmpty) continue;
