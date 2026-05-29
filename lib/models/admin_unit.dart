@@ -18,6 +18,8 @@ class AdminUnit {
   final String? macroRegion;   // Vùng miền
   final String? parentTen;     // Tên đơn vị cấp trên
   final String? parentMa;      // Mã đơn vị cấp trên
+  final double? centerLat;    // Tọa độ trung tâm (vĩ độ)
+  final double? centerLng;    // Tọa độ trung tâm (kinh độ)
 
   const AdminUnit({
     required this.ten,
@@ -32,6 +34,8 @@ class AdminUnit {
     this.macroRegion,
     this.parentTen,
     this.parentMa,
+    this.centerLat,
+    this.centerLng,
   });
 
   /// Mật độ dân số (người/km²). Prefers pre-computed value, else computes.
@@ -40,8 +44,17 @@ class AdminUnit {
     return dienTichKm2 > 0 ? danSo / dienTichKm2 : 0;
   }
 
+  String? get coordinateSummary {
+    if (centerLat == null || centerLng == null) return null;
+    return 'Tọa độ: ${centerLat!.toStringAsFixed(5)}, ${centerLng!.toStringAsFixed(5)}';
+  }
+
   /// Parse from GeoJSON feature properties (auto-detects schema).
-  factory AdminUnit.fromJson(Map<String, dynamic> json) {
+  factory AdminUnit.fromJson(
+    Map<String, dynamic> json, {
+    double? centerLat,
+    double? centerLng,
+  }) {
     // Detect which schema: HuggingFace uses "type", legacy uses "cap_hanh_chinh"
     // The islands use "name_special_unit" or we can default to "Quần đảo"
     String cap = (json['type'] as String?) ??
@@ -62,6 +75,13 @@ class AdminUnit {
         0;
 
     final double density = (json['density'] as num?)?.toDouble() ?? 0.0;
+
+    final double? parsedCenterLat = centerLat ??
+        (json['center_lat'] as num?)?.toDouble() ??
+        (json['latitude'] as num?)?.toDouble();
+    final double? parsedCenterLng = centerLng ??
+        (json['center_lng'] as num?)?.toDouble() ??
+        (json['longitude'] as num?)?.toDouble();
 
     // Handle NaN strings from JSON
     String? parseStr(dynamic v) {
@@ -94,6 +114,8 @@ class AdminUnit {
       macroRegion: macroRegion,
       parentTen: parseStr(json['parent_ten']) ?? parseStr(json['admin_post_merger']),
       parentMa: parseStr(json['parent_ma']),
+      centerLat: parsedCenterLat,
+      centerLng: parsedCenterLng,
     );
   }
 

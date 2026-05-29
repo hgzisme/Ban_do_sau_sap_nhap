@@ -429,16 +429,22 @@ _ProvinceParseResult _parseProvincesIsolate(String raw) {
   for (final feature in features) {
     final map = feature as Map<String, dynamic>;
     final props = map['properties'] as Map<String, dynamic>;
-    final unit = AdminUnit.fromJson(props);
-    units.add(unit);
 
     final ma = props['ma']?.toString();
+    double? centerLat;
+    double? centerLng;
     if (ma != null && ma.isNotEmpty) {
       final geometry = map['geometry'];
       if (geometry != null) {
-        boundsByMa[ma] = _boundsFromGeometry(geometry);
+        final bounds = _boundsFromGeometry(geometry);
+        boundsByMa[ma] = bounds;
+        centerLat = (bounds.south + bounds.north) / 2;
+        centerLng = (bounds.west + bounds.east) / 2;
       }
     }
+
+    final unit = AdminUnit.fromJson(props, centerLat: centerLat, centerLng: centerLng);
+    units.add(unit);
   }
 
   return _ProvinceParseResult(units, boundsByMa, geoJsonBytes);
@@ -457,16 +463,22 @@ _CommuneParseResult _parseCommunesIsolate(String raw) {
   for (final feature in features) {
     final map = Map<String, dynamic>.from(feature as Map);
     final props = map['properties'] as Map<String, dynamic>;
-    final unit = AdminUnit.fromJson(props);
-    units.add(unit);
 
     final ma = props['ma']?.toString();
+    double? centerLat;
+    double? centerLng;
     if (ma != null && ma.isNotEmpty) {
       final geometry = map['geometry'];
       if (geometry != null) {
-        boundsByMa[ma] = _boundsFromGeometry(geometry);
+        final bounds = _boundsFromGeometry(geometry);
+        boundsByMa[ma] = bounds;
+        centerLat = (bounds.south + bounds.north) / 2;
+        centerLng = (bounds.west + bounds.east) / 2;
       }
     }
+
+    final unit = AdminUnit.fromJson(props, centerLat: centerLat, centerLng: centerLng);
+    units.add(unit);
 
     final parentMa = props['parent_ma']?.toString();
     if (parentMa == null || parentMa.isEmpty) continue;

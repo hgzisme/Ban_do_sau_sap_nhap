@@ -22,7 +22,10 @@ class MapLodWidget extends StatefulWidget {
   final ValueChanged<MapDetailState>? onDetailStateChanged;
   final MapFocusRequest? focusRequest;
   final AdminUnit? selectedUnit;
+<<<<<<< HEAD
   final MapDataMode dataMode;
+=======
+>>>>>>> feature/divide_province
 
   const MapLodWidget({
     super.key,
@@ -56,6 +59,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
   List<AdminUnit> _visibleCommunes = [];
   Uint8List? _communeGeoJsonBytes;
   bool _isRefreshingCommunes = false;
+  String? _currentRegionName;
 
   Timer? _gestureDebounce;
   MapShapeSource? _provinceSourceCache;
@@ -210,6 +214,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
     _zoomNotifier = ValueNotifier(_zoomLevel);
     _layerController = MapShapeLayerController();
     _zoomPanBehavior = MapZoomPanBehavior(
+<<<<<<< HEAD
         enablePanning: true,
         enablePinching: true,
         enableDoubleTapZooming: true,
@@ -222,6 +227,64 @@ class _MapLodWidgetState extends State<MapLodWidget> {
       );
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _notifyDetailState();
+=======
+      enablePanning: true,
+      enablePinching: true,
+      enableDoubleTapZooming: true,
+      enableMouseWheelZooming: true,
+      zoomLevel: _zoomLevel,
+      focalLatLng: const MapLatLng(15.0, 108.5),
+      minZoomLevel: MapZoomThresholds.minZoomLevel,
+      maxZoomLevel: MapZoomThresholds.maxZoomLevel,
+      showToolbar: false,
+    );
+    _currentRegionName = _resolveCurrentRegionName();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _notifyDetailState();
+    });
+  }
+
+  @override
+  void didUpdateWidget(MapLodWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.colorMode != widget.colorMode) {
+      _provinceSourceCache = null;
+      _provinceSourceCacheKey = null;
+      _communeSourceCache.clear();
+      setState(() {});
+    }
+    if (widget.focusRequest != null &&
+        widget.focusRequest!.token != _lastAppliedFocusToken) {
+      _applyFocusRequest(widget.focusRequest!);
+    }
+  }
+
+  void _applyFocusRequest(MapFocusRequest request) {
+    _lastAppliedFocusToken = request.token;
+    final unit = request.unit;
+    final level = widget.repository.levelForUnit(unit);
+    final bounds = widget.repository.boundsForUnit(unit);
+    if (bounds == null) return;
+
+    final focal = _focalFromGeoBounds(bounds);
+    final targetZoom = _clampZoom(
+      level == MapDetailLevel.communes
+          ? MapZoomThresholds.focusZoomCommune
+          : MapZoomThresholds.focusZoomProvince,
+    );
+
+    if (level == MapDetailLevel.communes) {
+      final parentMa = unit.parentMa;
+      if (parentMa == null || parentMa.isEmpty) return;
+
+      final parentMas = {parentMa};
+      setState(() {
+        _detailLevel = MapDetailLevel.communes;
+        _visibleParentMas = parentMas;
+        _visibleCommunes = widget.repository.communesForProvinces(parentMas);
+        _communeGeoJson = widget.repository.buildCommuneGeoJson(parentMas);
+        _isRefreshingCommunes = false;
+>>>>>>> feature/divide_province
       });
     }
 
@@ -277,11 +340,51 @@ class _MapLodWidgetState extends State<MapLodWidget> {
       });
     }
 
+<<<<<<< HEAD
     @override
     void dispose() {
       _gestureDebounce?.cancel();
       _zoomNotifier.dispose();
       super.dispose();
+=======
+    _zoomLevel = targetZoom;
+    _zoomNotifier.value = targetZoom;
+    _cameraFocal = focal;
+    _cameraVisibleBounds = MapLatLngBounds(
+      MapLatLng(bounds.north, bounds.east),
+      MapLatLng(bounds.south, bounds.west),
+    );
+
+    try {
+      _zoomPanBehavior.focalLatLng = focal;
+      _zoomPanBehavior.zoomLevel = targetZoom;
+      _zoomLevel = _clampZoom(_zoomPanBehavior.zoomLevel);
+      _zoomNotifier.value = _zoomLevel;
+    } catch (_) {}
+
+    widget.onSelectionChanged(unit);
+    _updateCurrentRegionName();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _refreshCameraFromController();
+      _scheduleGestureSettled();
+    });
+  }
+
+  @override
+  void dispose() {
+    _gestureDebounce?.cancel();
+    _zoomNotifier.dispose();
+    super.dispose();
+  }
+
+  MapDetailLevel _resolveDetailLevel(double zoom) {
+    if (_detailLevel == MapDetailLevel.provinces) {
+      return zoom >= MapZoomThresholds.zoomInToCommunes
+          ? MapDetailLevel.communes
+          : MapDetailLevel.provinces;
+>>>>>>> feature/divide_province
     }
 
     MapDetailLevel _resolveDetailLevel(double zoom) {
@@ -303,6 +406,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
     }
 
   void _onGestureSettled() {
+<<<<<<< HEAD
     if (_isPointerDown) {
       _pendingGestureSettled = true;
       return;
@@ -311,7 +415,12 @@ class _MapLodWidgetState extends State<MapLodWidget> {
 
     if (!widget.repository.communesIndexed) return;
 
+=======
+>>>>>>> feature/divide_province
     _refreshCameraFromController();
+    _updateCurrentRegionName();
+
+    if (!widget.repository.communesIndexed) return;
 
     final targetLevel = _resolveDetailLevel(_zoomLevel);
 
@@ -394,6 +503,35 @@ class _MapLodWidgetState extends State<MapLodWidget> {
         isRefreshing: _isRefreshingCommunes,
       ),
     );
+  }
+
+  AdminUnit? _provinceAtFocal() {
+    final focal = _currentFocal();
+    final provinceMas = widget.repository.provincesAtPoint(
+      focal.latitude,
+      focal.longitude,
+    );
+    if (provinceMas.isEmpty) return null;
+
+    for (final province in _provinces) {
+      if (province.ma != null && provinceMas.contains(province.ma)) {
+        return province;
+      }
+    }
+    return null;
+  }
+
+  String? _resolveCurrentRegionName() {
+    final province = _provinceAtFocal();
+    if (province?.macroRegion == null) return null;
+    return regionDisplayName(province!.macroRegion);
+  }
+
+  void _updateCurrentRegionName() {
+    final nextRegionName = _resolveCurrentRegionName();
+    if (nextRegionName != _currentRegionName) {
+      setState(() => _currentRegionName = nextRegionName);
+    }
   }
 
   MapShapeSource _buildProvinceSource() {
@@ -532,7 +670,14 @@ class _MapLodWidgetState extends State<MapLodWidget> {
 
     final showCommuneOverlay = _detailLevel == MapDetailLevel.communes &&
         _visibleCommunes.isNotEmpty &&
+<<<<<<< HEAD
         _communeGeoJsonBytes != null;
+=======
+        _communeGeoJson != null;
+    final regionLabel = widget.selectedUnit?.macroRegion != null
+        ? regionDisplayName(widget.selectedUnit!.macroRegion)
+        : _currentRegionName;
+>>>>>>> feature/divide_province
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -670,7 +815,16 @@ class _MapLodWidgetState extends State<MapLodWidget> {
                 ),
               ),
             ),
+<<<<<<< HEAD
             ),
+=======
+            if (regionLabel != null)
+              Positioned(
+                top: 76,
+                left: 16,
+                child: _RegionLabelBadge(label: regionLabel),
+              ),
+>>>>>>> feature/divide_province
             Positioned(
               right: 16,
               top: 60,
@@ -682,6 +836,46 @@ class _MapLodWidgetState extends State<MapLodWidget> {
           ],
         );
       },
+    );
+  }
+}
+
+class _RegionLabelBadge extends StatelessWidget {
+  final String label;
+
+  const _RegionLabelBadge({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xCC1B2838),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.35)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.map_rounded, color: Color(0xFF00E5FF), size: 16),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

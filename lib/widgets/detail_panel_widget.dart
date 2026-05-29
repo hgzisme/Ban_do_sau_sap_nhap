@@ -132,7 +132,12 @@ class DetailPanelWidget extends StatelessWidget {
             // Extended info from HuggingFace
             if (u.capital != null) ...[
               const SizedBox(height: 8),
-              _infoRow(Icons.location_city_rounded, const Color(0xFFCE93D8), 'Thủ phủ', u.capital!),
+              _infoRow(
+                Icons.location_city_rounded,
+                const Color(0xFFCE93D8),
+                'Thủ phủ',
+                [u.capital!, if (u.coordinateSummary != null) u.coordinateSummary!].join('\n'),
+              ),
             ],
             if (u.decree != null) ...[
               const SizedBox(height: 8),

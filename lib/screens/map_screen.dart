@@ -187,6 +187,7 @@ class _MapScreenState extends State<MapScreen> {
               children: [
                 Container(
                   color: const Color(0xFF0F1923),
+<<<<<<< HEAD
                   child: ValueListenableBuilder<AdminUnit?>(
                     valueListenable: _selectedUnit,
                     builder: (context, unit, child) {
@@ -199,6 +200,15 @@ class _MapScreenState extends State<MapScreen> {
                         selectedUnit: unit,
                       );
                     },
+=======
+                  child: MapLodWidget(
+                    repository: _repo,
+                    onSelectionChanged: _onSelectionChanged,
+                    onDetailStateChanged: _onDetailStateChanged,
+                    colorMode: _colorMode,
+                    focusRequest: _focusRequest,
+                    selectedUnit: _selectedUnit,
+>>>>>>> feature/divide_province
                   ),
                 ),
                 Positioned(
