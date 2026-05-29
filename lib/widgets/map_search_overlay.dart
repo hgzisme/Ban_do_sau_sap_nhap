@@ -45,6 +45,8 @@ class _MapSearchOverlayState extends State<MapSearchOverlay> {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 250), () {
       if (!mounted) return;
+      // Guard: don't search if data hasn't loaded yet
+      if (!widget.repository.isLoaded) return;
       final query = value.trim();
       if (query.isEmpty) {
         setState(() {

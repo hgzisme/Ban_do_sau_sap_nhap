@@ -62,6 +62,7 @@ class MapRepository {
   String get provinceGeoJson =>
       _provinceGeoJson ?? '{"type":"FeatureCollection","features":[]}';
   bool get communesIndexed => _communesByParentMa.isNotEmpty;
+  bool get isLoaded => _provinces.isNotEmpty;
 
   int maxProvincePopulation = 0;
   int minProvincePopulation = 0;
@@ -89,15 +90,19 @@ class MapRepository {
       final props = map['properties'] as Map<String, dynamic>;
 
       final ma = props['ma']?.toString();
-      double? centerLat;
-      double? centerLng;
+      double? centerLat = props['center_lat'] != null ? (props['center_lat'] as num).toDouble() : null;
+      double? centerLng = props['center_lng'] != null ? (props['center_lng'] as num).toDouble() : null;
       if (ma != null && ma.isNotEmpty) {
         final geometry = map['geometry'];
         if (geometry != null) {
           final bounds = _boundsFromGeometry(geometry);
           _provinceBounds[ma] = bounds;
-          centerLat = (bounds.south + bounds.north) / 2;
-          centerLng = (bounds.west + bounds.east) / 2;
+          if (centerLat == null || centerLng == null) {
+            // Use the largest polygon's center to avoid island outliers skewing
+            final center = _mainlandCenterFromGeometry(geometry);
+            centerLat = center.$1;
+            centerLng = center.$2;
+          }
         }
       }
 
@@ -134,15 +139,19 @@ class MapRepository {
       final props = map['properties'] as Map<String, dynamic>;
 
       final ma = props['ma']?.toString();
-      double? centerLat;
-      double? centerLng;
+      double? centerLat = props['center_lat'] != null ? (props['center_lat'] as num).toDouble() : null;
+      double? centerLng = props['center_lng'] != null ? (props['center_lng'] as num).toDouble() : null;
       if (ma != null && ma.isNotEmpty) {
         final geometry = map['geometry'];
         if (geometry != null) {
           final bounds = _boundsFromGeometry(geometry);
           _communeBoundsByMa[ma] = bounds;
-          centerLat = (bounds.south + bounds.north) / 2;
-          centerLng = (bounds.west + bounds.east) / 2;
+          if (centerLat == null || centerLng == null) {
+            // Use the largest polygon's center to avoid island outliers skewing
+            final center = _mainlandCenterFromGeometry(geometry);
+            centerLat = center.$1;
+            centerLng = center.$2;
+          }
         }
       }
 
@@ -447,6 +456,62 @@ class _ScoredSearchResult {
 }
 
 
+
+/// Returns the center (lat, lng) of the largest polygon in a geometry.
+/// For MultiPolygon, picks the polygon with the biggest bounding box area
+/// so that distant island clusters don't drag the center away from the mainland.
+(double, double) _mainlandCenterFromGeometry(dynamic geometry) {
+  final geoMap = geometry as Map<String, dynamic>;
+  final type = geoMap['type'] as String? ?? '';
+  final coords = geoMap['coordinates'];
+
+  GeoBounds ringBounds(List ring) {
+    var s = 90.0, n = -90.0, w = 180.0, e = -180.0;
+    for (final pt in ring) {
+      if (pt is List && pt.length >= 2) {
+        final lng = (pt[0] as num).toDouble();
+        final lat = (pt[1] as num).toDouble();
+        if (lat < s) s = lat;
+        if (lat > n) n = lat;
+        if (lng < w) w = lng;
+        if (lng > e) e = lng;
+      }
+    }
+    return GeoBounds(south: s, north: n, west: w, east: e);
+  }
+
+  double bboxArea(GeoBounds b) => (b.north - b.south) * (b.east - b.west);
+
+  if (type == 'Polygon' && coords is List) {
+    // Single polygon — use first ring (outer)
+    final bounds = ringBounds(coords[0] as List);
+    return ((bounds.south + bounds.north) / 2, (bounds.west + bounds.east) / 2);
+  }
+
+  if (type == 'MultiPolygon' && coords is List) {
+    // Pick the polygon with the largest bounding box area
+    GeoBounds? best;
+    double bestArea = -1;
+    for (final poly in coords) {
+      if (poly is List && poly.isNotEmpty) {
+        final ring = poly[0] as List; // outer ring
+        final b = ringBounds(ring);
+        final a = bboxArea(b);
+        if (a > bestArea) {
+          bestArea = a;
+          best = b;
+        }
+      }
+    }
+    if (best != null) {
+      return ((best.south + best.north) / 2, (best.west + best.east) / 2);
+    }
+  }
+
+  // Fallback: full bounding box center
+  final fallback = _boundsFromGeometry(geometry);
+  return ((fallback.south + fallback.north) / 2, (fallback.west + fallback.east) / 2);
+}
 
 GeoBounds _boundsFromGeometry(dynamic geometry) {
   final coords = (geometry as Map<String, dynamic>)['coordinates'];

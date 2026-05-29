@@ -11,6 +11,11 @@ void main() {
         stackStr.contains('getVisibleBounds')) {
       return; // Ignore
     }
+    // Suppress Syncfusion MapLatLngTween.lerp null during focal animation
+    if (exceptionStr.contains('Null check operator used on a null value') &&
+        stackStr.contains('MapLatLngTween')) {
+      return; // Ignore
+    }
     // Suppress known Syncfusion map selection race condition
     if (exceptionStr.contains('Bad state: No element') &&
         stackStr.contains('_handleShapeLayerSelection')) {

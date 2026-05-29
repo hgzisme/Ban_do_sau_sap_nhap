@@ -69,6 +69,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
 
   bool _isPointerDown = false;
   bool _pendingGestureSettled = false;
+  bool _focusRequestActive = false;
 
   List<AdminUnit> get _provinces => widget.repository.provinces;
 
@@ -253,22 +254,47 @@ class _MapLodWidgetState extends State<MapLodWidget> {
     void _applyFocusRequest(MapFocusRequest request) {
       final unit = request.unit;
       final level = widget.repository.levelForUnit(unit);
-      final bounds = widget.repository.boundsForUnit(unit);
-      if (bounds == null) return;
+
+      // Compute target coordinates: prefer unit center, fallback to bounds
+      double? targetLat = unit.centerLat;
+      double? targetLng = unit.centerLng;
+
+      if (targetLat == null || targetLng == null) {
+        final bounds = widget.repository.boundsForUnit(unit);
+        if (bounds != null) {
+          targetLat = (bounds.south + bounds.north) / 2;
+          targetLng = (bounds.west + bounds.east) / 2;
+        }
+      }
+
+      if (targetLat == null || targetLng == null) return;
+
+      final targetFocal = MapLatLng(targetLat, targetLng);
+      final targetZoom = level == MapDetailLevel.communes
+          ? MapZoomThresholds.focusZoomCommune
+          : MapZoomThresholds.focusZoomProvince;
+
+      // Prevent _onGestureSettled from overriding our state during the transition
+      _focusRequestActive = true;
+      _gestureDebounce?.cancel();
+
+      // Set _cameraFocal immediately so any code reading _currentFocal()
+      // during this frame uses the correct target position
+      _cameraFocal = targetFocal;
 
       if (level == MapDetailLevel.communes) {
         final parentMa = unit.parentMa;
-        if (parentMa == null || parentMa.isEmpty) return;
-
-        final parentMas = {parentMa};
-        setState(() {
-          _detailLevel = MapDetailLevel.communes;
-          _visibleParentMas = parentMas;
-          _visibleCommunes = widget.repository.communesForProvinces(parentMas);
-          _communeGeoJson = widget.repository.buildCommuneGeoJson(parentMas);
-          _isRefreshingCommunes = false;
-        });
-        _notifyDetailState();
+        if (parentMa != null && parentMa.isNotEmpty) {
+          final parentMas = {parentMa};
+          setState(() {
+            _detailLevel = MapDetailLevel.communes;
+            _visibleParentMas = parentMas;
+            _visibleCommunes = widget.repository.communesForProvinces(parentMas);
+            _communeGeoJson = widget.repository.buildCommuneGeoJson(parentMas);
+            _isRefreshingCommunes = false;
+          });
+          _notifyDetailState();
+        }
       } else {
         setState(() {
           _detailLevel = MapDetailLevel.provinces;
@@ -282,10 +308,41 @@ class _MapLodWidgetState extends State<MapLodWidget> {
 
       widget.onSelectionChanged(unit);
 
+      // Defer camera move to post-frame so Syncfusion processes the
+      // new shape source first, then we move the camera.
+      //
+      // Strategy: Instead of setting focal + zoom simultaneously (which
+      // causes Syncfusion's MapLatLngTween to crash on large zoom jumps
+      // e.g. 1.0 → 6.5), we do it in two steps:
+      //   Step 1: Set focal point at current zoom (just a pan)
+      //   Step 2: Set the target zoom level (just a zoom)
+      // Each step is a small change that Syncfusion can handle.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        _refreshCameraFromController();
-        _scheduleGestureSettled();
+        try {
+          // Step 1: Pan to target location at current zoom level
+          _zoomPanBehavior.focalLatLng = targetFocal;
+        } catch (_) {}
+
+        // Step 2: After Syncfusion processes the pan, set the zoom
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          try {
+            // Re-set focal to make sure it stuck after the rebuild
+            _zoomPanBehavior.focalLatLng = targetFocal;
+            _zoomLevel = targetZoom;
+            _zoomNotifier.value = targetZoom;
+            _zoomPanBehavior.zoomLevel = targetZoom;
+          } catch (_) {
+            // Syncfusion's MapLatLngTween.lerp may throw if its internal
+            // _currentFocalLatLng is null after a shape source rebuild.
+          }
+
+          // Allow _onGestureSettled to run again after camera settles
+          Future.delayed(const Duration(milliseconds: 600), () {
+            if (mounted) _focusRequestActive = false;
+          });
+        });
       });
     }
 
@@ -341,6 +398,9 @@ class _MapLodWidgetState extends State<MapLodWidget> {
     }
     _pendingGestureSettled = false;
 
+    // Don't override state while a focus request is settling
+    if (_focusRequestActive) return;
+
     if (!widget.repository.communesIndexed) return;
 
     _refreshCameraFromController();
@@ -392,11 +452,20 @@ class _MapLodWidgetState extends State<MapLodWidget> {
       return false;
     }
     _trackCameraFromZoom(details);
-    _scheduleGestureSettled();
+    // Don't schedule gesture settled during a programmatic focus request,
+    // otherwise it will override our target state mid-animation.
+    if (!_focusRequestActive) {
+      _scheduleGestureSettled();
+    }
     return true;
   }
 
   bool _handleWillPan(MapPanDetails details) {
+    // Don't clear selection or recalculate during a programmatic focus request
+    if (_focusRequestActive) {
+      _trackCameraFromPan(details);
+      return true;
+    }
     if (widget.selectedUnit != null) {
       widget.onSelectionChanged(null);
     }
@@ -669,9 +738,13 @@ class _MapLodWidgetState extends State<MapLodWidget> {
                           );
                         }
                         
-                        return MapMarker(
-                          latitude: _zoomPanBehavior.focalLatLng?.latitude ?? 16.0,
-                          longitude: _zoomPanBehavior.focalLatLng?.longitude ?? 106.0,
+                         // Dùng tọa độ chính xác của unit đang được chọn
+                         final selectedUnit = widget.selectedUnit;
+                         final markerLat = selectedUnit?.centerLat ?? _zoomPanBehavior.focalLatLng?.latitude ?? 16.0;
+                         final markerLng = selectedUnit?.centerLng ?? _zoomPanBehavior.focalLatLng?.longitude ?? 106.0;
+                         return MapMarker(
+                          latitude: markerLat,
+                          longitude: markerLng,
                           alignment: Alignment.center,
                           size: const Size(40, 40),
                           child: Stack(
