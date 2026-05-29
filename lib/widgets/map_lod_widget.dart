@@ -19,6 +19,7 @@ class MapLodWidget extends StatefulWidget {
   final ValueChanged<MapDetailState>? onDetailStateChanged;
   final ColorMode colorMode;
   final MapFocusRequest? focusRequest;
+  final AdminUnit? selectedUnit;
 
   const MapLodWidget({
     super.key,
@@ -27,6 +28,7 @@ class MapLodWidget extends StatefulWidget {
     this.onDetailStateChanged,
     this.colorMode = ColorMode.byType,
     this.focusRequest,
+    this.selectedUnit,
   });
 
   @override
@@ -51,6 +53,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
   List<AdminUnit> _visibleCommunes = [];
   String? _communeGeoJson;
   bool _isRefreshingCommunes = false;
+  String? _currentRegionName;
 
   Timer? _gestureDebounce;
   MapShapeSource? _provinceSourceCache;
@@ -226,6 +229,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
       maxZoomLevel: MapZoomThresholds.maxZoomLevel,
       showToolbar: false,
     );
+    _currentRegionName = _resolveCurrentRegionName();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _notifyDetailState();
     });
@@ -300,6 +304,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
     } catch (_) {}
 
     widget.onSelectionChanged(unit);
+    _updateCurrentRegionName();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -334,9 +339,10 @@ class _MapLodWidgetState extends State<MapLodWidget> {
   }
 
   void _onGestureSettled() {
-    if (!widget.repository.communesIndexed) return;
-
     _refreshCameraFromController();
+    _updateCurrentRegionName();
+
+    if (!widget.repository.communesIndexed) return;
 
     final targetLevel = _resolveDetailLevel(_zoomLevel);
 
@@ -419,6 +425,35 @@ class _MapLodWidgetState extends State<MapLodWidget> {
         isRefreshing: _isRefreshingCommunes,
       ),
     );
+  }
+
+  AdminUnit? _provinceAtFocal() {
+    final focal = _currentFocal();
+    final provinceMas = widget.repository.provincesAtPoint(
+      focal.latitude,
+      focal.longitude,
+    );
+    if (provinceMas.isEmpty) return null;
+
+    for (final province in _provinces) {
+      if (province.ma != null && provinceMas.contains(province.ma)) {
+        return province;
+      }
+    }
+    return null;
+  }
+
+  String? _resolveCurrentRegionName() {
+    final province = _provinceAtFocal();
+    if (province?.macroRegion == null) return null;
+    return regionDisplayName(province!.macroRegion);
+  }
+
+  void _updateCurrentRegionName() {
+    final nextRegionName = _resolveCurrentRegionName();
+    if (nextRegionName != _currentRegionName) {
+      setState(() => _currentRegionName = nextRegionName);
+    }
   }
 
   MapShapeSource _buildProvinceSource() {
@@ -551,6 +586,9 @@ class _MapLodWidgetState extends State<MapLodWidget> {
     final showCommuneOverlay = _detailLevel == MapDetailLevel.communes &&
         _visibleCommunes.isNotEmpty &&
         _communeGeoJson != null;
+    final regionLabel = widget.selectedUnit?.macroRegion != null
+        ? regionDisplayName(widget.selectedUnit!.macroRegion)
+        : _currentRegionName;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -663,6 +701,12 @@ class _MapLodWidgetState extends State<MapLodWidget> {
                 ),
               ),
             ),
+            if (regionLabel != null)
+              Positioned(
+                top: 76,
+                left: 16,
+                child: _RegionLabelBadge(label: regionLabel),
+              ),
             Positioned(
               right: 16,
               bottom: 100,
@@ -674,6 +718,46 @@ class _MapLodWidgetState extends State<MapLodWidget> {
           ],
         );
       },
+    );
+  }
+}
+
+class _RegionLabelBadge extends StatelessWidget {
+  final String label;
+
+  const _RegionLabelBadge({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xCC1B2838),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.35)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.map_rounded, color: Color(0xFF00E5FF), size: 16),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

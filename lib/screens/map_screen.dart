@@ -127,6 +127,7 @@ class _MapScreenState extends State<MapScreen> {
                     onDetailStateChanged: _onDetailStateChanged,
                     colorMode: _colorMode,
                     focusRequest: _focusRequest,
+                    selectedUnit: _selectedUnit,
                   ),
                 ),
                 Positioned(

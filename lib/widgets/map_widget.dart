@@ -670,7 +670,10 @@ class _EnhancedTooltip extends StatelessWidget {
                   _infoLine(
                     Icons.location_city_rounded,
                     const Color(0xFFCE93D8),
-                    'Thủ phủ: ${unit.capital!}',
+                    [
+                      'Thủ phủ: ${unit.capital!}',
+                      if (unit.coordinateSummary != null) unit.coordinateSummary!,
+                    ].join('\n'),
                   ),
                 ],
 
