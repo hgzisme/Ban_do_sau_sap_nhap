@@ -73,8 +73,12 @@ class _MapSearchOverlayState extends State<MapSearchOverlay> {
 
   void _selectResult(SearchResult result) {
     widget.onResultSelected(result);
+    _controller.clear();
     _focusNode.unfocus();
-    setState(() => _showDropdown = false);
+    setState(() {
+      _showDropdown = false;
+      _results = const [];
+    });
   }
 
   String _truncate(String value, [int maxLength = 60]) {

@@ -397,6 +397,9 @@ class _MapLodWidgetState extends State<MapLodWidget> {
   }
 
   bool _handleWillPan(MapPanDetails details) {
+    if (widget.selectedUnit != null) {
+      widget.onSelectionChanged(null);
+    }
     _trackCameraFromPan(details);
     if (_detailLevel == MapDetailLevel.communes ||
         _zoomLevel >= MapZoomThresholds.zoomInToCommunes) {
@@ -598,7 +601,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
                 child: SfMaps(
                   layers: [
                     MapShapeLayer(
-                      key: const ValueKey('provinces_layer'),
+                      key: ValueKey('provinces_layer_${widget.dataMode.name}'),
                       controller: _layerController,
                       source: _buildProvinceSource(),
                       zoomPanBehavior: _zoomPanBehavior,
