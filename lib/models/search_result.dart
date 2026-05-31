@@ -16,3 +16,4 @@ class SearchResult {
     required this.matchLabel,
   });
 }
+ 

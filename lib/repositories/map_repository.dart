@@ -540,3 +540,4 @@ GeoBounds _boundsFromGeometry(dynamic geometry) {
   visit(coords);
   return GeoBounds(south: south, north: north, west: west, east: east);
 }
+ 

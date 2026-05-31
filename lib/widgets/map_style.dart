@@ -65,3 +65,4 @@ Color colorForUnit(AdminUnit unit, ColorMode colorMode) {
   }
   return colorForCategory(unit.capHanhChinh);
 }
+ 

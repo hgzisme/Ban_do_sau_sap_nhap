@@ -6,3 +6,4 @@ class MapFocusRequest {
 
   const MapFocusRequest({required this.unit, required this.token});
 }
+ 

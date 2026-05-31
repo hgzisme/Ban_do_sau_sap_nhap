@@ -482,3 +482,4 @@ class _VerticalLegendWidget extends StatelessWidget {
     );
   }
 }
+ 
