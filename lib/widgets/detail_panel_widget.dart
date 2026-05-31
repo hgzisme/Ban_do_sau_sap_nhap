@@ -229,3 +229,4 @@ class DetailPanelWidget extends StatelessWidget {
   String _fmt(double v) => v.toStringAsFixed(1).replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
   String _fmtInt(int v) => v.toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
 }
+ 

@@ -1055,3 +1055,4 @@ class _DashedBorderPainter extends CustomPainter {
     return oldDelegate.color != color || oldDelegate.strokeWidth != strokeWidth || oldDelegate.gap != gap;
   }
 }
+ 

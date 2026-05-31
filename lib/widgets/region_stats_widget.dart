@@ -142,3 +142,4 @@ class RegionStatsWidget extends StatelessWidget {
 
   String _fmtInt(int v) => v.toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
 }
+ 

@@ -49,3 +49,4 @@ class GeoBounds {
     return GeoBounds(south: south, north: north, west: west, east: east);
   }
 }
+ 

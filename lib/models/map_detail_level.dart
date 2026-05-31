@@ -14,3 +14,4 @@ class MapZoomThresholds {
   static const Duration viewportDebounce = Duration(milliseconds: 350);
   static const double viewportBufferDegrees = 0.15;
 }
+ 
