@@ -1,0 +1,9 @@
+reviewCadence:
+  type: manual
+runOnDraft: false
+reviewOptions:
+  business_logic: false
+suggestionControl:
+  applyFiltersToKodyRules: true
+  maxSuggestions: 6
+  severityLevelFilter: critical
