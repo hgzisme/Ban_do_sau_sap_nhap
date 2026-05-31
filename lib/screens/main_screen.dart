@@ -9,7 +9,8 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateMixin {
+class _MainScreenState extends State<MainScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   bool _isMenuOpen = false;
   int _selectedIndex = 0;
@@ -18,7 +19,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
     {
       'title': 'Bản đồ sáp nhập',
       'icon': Icons.map_rounded,
-      'content': const MapScreen(), 
+      'content': const MapScreen(),
     },
     {
       'title': 'Thống kê tổng quan',
@@ -77,12 +78,16 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.construction_rounded, size: 64, color: Color(0xFF00E5FF)),
+            const Icon(
+              Icons.construction_rounded,
+              size: 64,
+              color: Color(0xFF00E5FF),
+            ),
             const SizedBox(height: 16),
             Text(
               text,
               style: const TextStyle(
-                color: Colors.white, 
+                color: Colors.white,
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
               ),
@@ -116,7 +121,8 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
             animation: _animationController,
             builder: (context, child) {
               double slide = maxSlide * _animationController.value;
-              double scale = 1 - (_animationController.value * 0.12); // Scale down to 88%
+              double scale =
+                  1 - (_animationController.value * 0.12); // Scale down to 88%
               double radius = _animationController.value * 28;
 
               return Transform.translate(
@@ -124,22 +130,22 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                 child: Transform.scale(
                   scale: scale,
                   alignment: Alignment.centerLeft,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(radius),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      boxShadow: [
-                        if (_isMenuOpen)
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.4),
-                            blurRadius: 24,
-                            offset: const Offset(-8, 0),
-                          ),
-                      ],
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(radius),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        boxShadow: [
+                          if (_isMenuOpen)
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.4),
+                              blurRadius: 24,
+                              offset: const Offset(-8, 0),
+                            ),
+                        ],
+                      ),
+                      child: _buildMainContent(),
                     ),
-                    child: _buildMainContent(),
                   ),
-                ),
                 ),
               );
             },
@@ -163,7 +169,11 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                 CircleAvatar(
                   backgroundColor: Color(0xFF00E5FF),
                   radius: 22,
-                  child: Icon(Icons.map_outlined, color: Color(0xFF0F1923), size: 24),
+                  child: Icon(
+                    Icons.map_outlined,
+                    color: Color(0xFF0F1923),
+                    size: 24,
+                  ),
                 ),
                 SizedBox(width: 12),
                 Expanded(
@@ -180,7 +190,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
               ],
             ),
             const SizedBox(height: 48),
-            
+
             // Menu Items
             Expanded(
               child: ListView.builder(
@@ -194,28 +204,43 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                     curve: Curves.easeInOut,
                     margin: const EdgeInsets.only(bottom: 12),
                     decoration: BoxDecoration(
-                      color: isSelected ? const Color(0xFF00E5FF).withValues(alpha: 0.15) : Colors.transparent,
+                      color: isSelected
+                          ? const Color(0xFF00E5FF).withValues(alpha: 0.15)
+                          : Colors.transparent,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: isSelected ? const Color(0xFF00E5FF).withValues(alpha: 0.3) : Colors.transparent,
+                        color: isSelected
+                            ? const Color(0xFF00E5FF).withValues(alpha: 0.3)
+                            : Colors.transparent,
                       ),
                     ),
                     child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
                       leading: Icon(
                         item['icon'],
-                        color: isSelected ? const Color(0xFF00E5FF) : Colors.white54,
+                        color: isSelected
+                            ? const Color(0xFF00E5FF)
+                            : Colors.white54,
                         size: 26,
                       ),
                       title: Text(
                         item['title'],
                         style: TextStyle(
-                          color: isSelected ? const Color(0xFF00E5FF) : Colors.white70,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                          color: isSelected
+                              ? const Color(0xFF00E5FF)
+                              : Colors.white70,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.w500,
                           fontSize: 16,
                         ),
                       ),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                       onTap: () => _selectMenu(index),
                     ),
                   );

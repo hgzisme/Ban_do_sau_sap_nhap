@@ -13,7 +13,6 @@ import '../models/map_focus_request.dart';
 import '../repositories/map_repository.dart';
 import 'map_style.dart' show colorForRegion;
 
-
 /// Google Maps-style LOD map: provinces at low zoom, viewport-filtered communes
 /// at high zoom. Province base layer handles pan; communes render as sublayer.
 class MapLodWidget extends StatefulWidget {
@@ -62,7 +61,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
   MapDataMode? _provinceSourceCacheMode;
   final Map<String, MapShapeSource> _communeSourceCache = {};
   int? _lastAppliedFocusToken;
-  
+
   Timer? _selectionDelayTimer;
   int _safeProvinceSelectedIndex = -1;
   int _safeCommuneSelectedIndex = -1;
@@ -85,7 +84,6 @@ class _MapLodWidgetState extends State<MapLodWidget> {
         _zoomPanBehavior.focalLatLng ??
         const MapLatLng(15.0, 108.5);
   }
-
 
   MapLatLng _focalFromBounds(MapLatLngBounds bounds) {
     return MapLatLng(
@@ -133,8 +131,6 @@ class _MapLodWidgetState extends State<MapLodWidget> {
       (viewport.south + viewport.north) / 2,
       (viewport.west + viewport.east) / 2,
     );
-
-
   }
 
   GeoBounds? _computeViewportBoundsFromPixels() {
@@ -218,178 +214,184 @@ class _MapLodWidgetState extends State<MapLodWidget> {
     _zoomNotifier = ValueNotifier(_zoomLevel);
     _layerController = MapShapeLayerController();
     _zoomPanBehavior = MapZoomPanBehavior(
-        enablePanning: true,
-        enablePinching: true,
-        enableDoubleTapZooming: true,
-        enableMouseWheelZooming: true,
-        zoomLevel: _zoomLevel,
-        focalLatLng: const MapLatLng(16.0, 106.0),
-        minZoomLevel: MapZoomThresholds.minZoomLevel,
-        maxZoomLevel: MapZoomThresholds.maxZoomLevel,
-        showToolbar: false,
-      );
+      enablePanning: true,
+      enablePinching: true,
+      enableDoubleTapZooming: true,
+      enableMouseWheelZooming: true,
+      zoomLevel: _zoomLevel,
+      focalLatLng: const MapLatLng(16.0, 106.0),
+      minZoomLevel: MapZoomThresholds.minZoomLevel,
+      maxZoomLevel: MapZoomThresholds.maxZoomLevel,
+      showToolbar: false,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _notifyDetailState();
+    });
+  }
+
+  @override
+  void didUpdateWidget(MapLodWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selectedUnit != oldWidget.selectedUnit) {
+      _updateSafeSelections();
+    }
+    if (widget.focusRequest != null &&
+        widget.focusRequest!.token != _lastAppliedFocusToken) {
+      final request = widget.focusRequest!;
+      _lastAppliedFocusToken = request.token;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _notifyDetailState();
+        if (mounted) _applyFocusRequest(request);
       });
     }
+  }
 
+  void _applyFocusRequest(MapFocusRequest request) {
+    final unit = request.unit;
+    final level = widget.repository.levelForUnit(unit);
 
+    // Compute target coordinates: prefer unit center, fallback to bounds
+    double? targetLat = unit.centerLat;
+    double? targetLng = unit.centerLng;
 
-    @override
-    void didUpdateWidget(MapLodWidget oldWidget) {
-      super.didUpdateWidget(oldWidget);
-      if (widget.selectedUnit != oldWidget.selectedUnit) {
-        _updateSafeSelections();
-      }
-      if (widget.focusRequest != null &&
-          widget.focusRequest!.token != _lastAppliedFocusToken) {
-        final request = widget.focusRequest!;
-        _lastAppliedFocusToken = request.token;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _applyFocusRequest(request);
-        });
+    if (targetLat == null || targetLng == null) {
+      final bounds = widget.repository.boundsForUnit(unit);
+      if (bounds != null) {
+        targetLat = (bounds.south + bounds.north) / 2;
+        targetLng = (bounds.west + bounds.east) / 2;
       }
     }
 
-    void _applyFocusRequest(MapFocusRequest request) {
-      final unit = request.unit;
-      final level = widget.repository.levelForUnit(unit);
+    if (targetLat == null || targetLng == null) return;
 
-      // Compute target coordinates: prefer unit center, fallback to bounds
-      double? targetLat = unit.centerLat;
-      double? targetLng = unit.centerLng;
+    final targetFocal = MapLatLng(targetLat, targetLng);
+    final targetZoom = level == MapDetailLevel.communes
+        ? MapZoomThresholds.focusZoomCommune
+        : MapZoomThresholds.focusZoomProvince;
 
-      if (targetLat == null || targetLng == null) {
-        final bounds = widget.repository.boundsForUnit(unit);
-        if (bounds != null) {
-          targetLat = (bounds.south + bounds.north) / 2;
-          targetLng = (bounds.west + bounds.east) / 2;
-        }
-      }
+    // Prevent _onGestureSettled from overriding our state during the transition
+    _focusRequestActive = true;
+    _gestureDebounce?.cancel();
 
-      if (targetLat == null || targetLng == null) return;
+    // Set _cameraFocal immediately so any code reading _currentFocal()
+    // during this frame uses the correct target position
+    _cameraFocal = targetFocal;
 
-      final targetFocal = MapLatLng(targetLat, targetLng);
-      final targetZoom = level == MapDetailLevel.communes
-          ? MapZoomThresholds.focusZoomCommune
-          : MapZoomThresholds.focusZoomProvince;
-
-      // Prevent _onGestureSettled from overriding our state during the transition
-      _focusRequestActive = true;
-      _gestureDebounce?.cancel();
-
-      // Set _cameraFocal immediately so any code reading _currentFocal()
-      // during this frame uses the correct target position
-      _cameraFocal = targetFocal;
-
-      if (level == MapDetailLevel.communes) {
-        final parentMa = unit.parentMa;
-        if (parentMa != null && parentMa.isNotEmpty) {
-          final parentMas = {parentMa};
-          setState(() {
-            _detailLevel = MapDetailLevel.communes;
-            _visibleParentMas = parentMas;
-            _visibleCommunes = widget.repository.communesForProvinces(parentMas);
-            _communeGeoJson = widget.repository.buildCommuneGeoJson(parentMas);
-            _isRefreshingCommunes = false;
-          });
-          _notifyDetailState();
-        }
-      } else {
+    if (level == MapDetailLevel.communes) {
+      final parentMa = unit.parentMa;
+      if (parentMa != null && parentMa.isNotEmpty) {
+        final parentMas = {parentMa};
         setState(() {
-          _detailLevel = MapDetailLevel.provinces;
-          _visibleParentMas = {};
-          _visibleCommunes = [];
-          _communeGeoJson = null;
+          _detailLevel = MapDetailLevel.communes;
+          _visibleParentMas = parentMas;
+          _visibleCommunes = widget.repository.communesForProvinces(parentMas);
+          _communeGeoJson = widget.repository.buildCommuneGeoJson(parentMas);
           _isRefreshingCommunes = false;
         });
         _notifyDetailState();
       }
+    } else {
+      setState(() {
+        _detailLevel = MapDetailLevel.provinces;
+        _visibleParentMas = {};
+        _visibleCommunes = [];
+        _communeGeoJson = null;
+        _isRefreshingCommunes = false;
+      });
+      _notifyDetailState();
+    }
 
-      widget.onSelectionChanged(unit);
+    widget.onSelectionChanged(unit);
 
-      // Defer camera move to post-frame so Syncfusion processes the
-      // new shape source first, then we move the camera.
-      //
-      // Strategy: Instead of setting focal + zoom simultaneously (which
-      // causes Syncfusion's MapLatLngTween to crash on large zoom jumps
-      // e.g. 1.0 → 6.5), we do it in two steps:
-      //   Step 1: Set focal point at current zoom (just a pan)
-      //   Step 2: Set the target zoom level (just a zoom)
-      // Each step is a small change that Syncfusion can handle.
+    // Defer camera move to post-frame so Syncfusion processes the
+    // new shape source first, then we move the camera.
+    //
+    // Strategy: Instead of setting focal + zoom simultaneously (which
+    // causes Syncfusion's MapLatLngTween to crash on large zoom jumps
+    // e.g. 1.0 → 6.5), we do it in two steps:
+    //   Step 1: Set focal point at current zoom (just a pan)
+    //   Step 2: Set the target zoom level (just a zoom)
+    // Each step is a small change that Syncfusion can handle.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      try {
+        // Step 1: Pan to target location at current zoom level
+        _zoomPanBehavior.focalLatLng = targetFocal;
+      } catch (_) {}
+
+      // Step 2: After Syncfusion processes the pan, set the zoom
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         try {
-          // Step 1: Pan to target location at current zoom level
+          // Re-set focal to make sure it stuck after the rebuild
           _zoomPanBehavior.focalLatLng = targetFocal;
-        } catch (_) {}
+          _zoomLevel = targetZoom;
+          _zoomNotifier.value = targetZoom;
+          _zoomPanBehavior.zoomLevel = targetZoom;
+        } catch (_) {
+          // Syncfusion's MapLatLngTween.lerp may throw if its internal
+          // _currentFocalLatLng is null after a shape source rebuild.
+        }
 
-        // Step 2: After Syncfusion processes the pan, set the zoom
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          try {
-            // Re-set focal to make sure it stuck after the rebuild
-            _zoomPanBehavior.focalLatLng = targetFocal;
-            _zoomLevel = targetZoom;
-            _zoomNotifier.value = targetZoom;
-            _zoomPanBehavior.zoomLevel = targetZoom;
-          } catch (_) {
-            // Syncfusion's MapLatLngTween.lerp may throw if its internal
-            // _currentFocalLatLng is null after a shape source rebuild.
-          }
-
-          // Allow _onGestureSettled to run again after camera settles
-          Future.delayed(const Duration(milliseconds: 600), () {
-            if (mounted) _focusRequestActive = false;
-          });
+        // Allow _onGestureSettled to run again after camera settles
+        Future.delayed(const Duration(milliseconds: 600), () {
+          if (mounted) _focusRequestActive = false;
         });
       });
-    }
+    });
+  }
 
-    void _updateSafeSelections() {
-      _selectionDelayTimer?.cancel();
-      _selectionDelayTimer = Timer(const Duration(milliseconds: 300), () {
-        if (!mounted) return;
-        setState(() {
-          if (widget.selectedUnit != null && widget.repository.levelForUnit(widget.selectedUnit!) == MapDetailLevel.provinces) {
-            _safeProvinceSelectedIndex = _provinces.indexWhere((p) => p.ma == widget.selectedUnit!.ma);
-            _safeCommuneSelectedIndex = -1;
-          } else if (widget.selectedUnit != null && widget.repository.levelForUnit(widget.selectedUnit!) == MapDetailLevel.communes) {
-            _safeProvinceSelectedIndex = -1;
-            _safeCommuneSelectedIndex = _visibleCommunes.indexWhere((c) => c.ma == widget.selectedUnit!.ma);
-          } else {
-            _safeProvinceSelectedIndex = -1;
-            _safeCommuneSelectedIndex = -1;
-          }
-        });
+  void _updateSafeSelections() {
+    _selectionDelayTimer?.cancel();
+    _selectionDelayTimer = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      setState(() {
+        if (widget.selectedUnit != null &&
+            widget.repository.levelForUnit(widget.selectedUnit!) ==
+                MapDetailLevel.provinces) {
+          _safeProvinceSelectedIndex = _provinces.indexWhere(
+            (p) => p.ma == widget.selectedUnit!.ma,
+          );
+          _safeCommuneSelectedIndex = -1;
+        } else if (widget.selectedUnit != null &&
+            widget.repository.levelForUnit(widget.selectedUnit!) ==
+                MapDetailLevel.communes) {
+          _safeProvinceSelectedIndex = -1;
+          _safeCommuneSelectedIndex = _visibleCommunes.indexWhere(
+            (c) => c.ma == widget.selectedUnit!.ma,
+          );
+        } else {
+          _safeProvinceSelectedIndex = -1;
+          _safeCommuneSelectedIndex = -1;
+        }
       });
-    }
+    });
+  }
 
-    @override
-    void dispose() {
-      _selectionDelayTimer?.cancel();
-      _gestureDebounce?.cancel();
-      _zoomNotifier.dispose();
-      super.dispose();
-    }
+  @override
+  void dispose() {
+    _selectionDelayTimer?.cancel();
+    _gestureDebounce?.cancel();
+    _zoomNotifier.dispose();
+    super.dispose();
+  }
 
-    MapDetailLevel _resolveDetailLevel(double zoom) {
-      if (_detailLevel == MapDetailLevel.provinces) {
-        return zoom >= MapZoomThresholds.zoomInToCommunes
-            ? MapDetailLevel.communes
-            : MapDetailLevel.provinces;
-      }
-      return zoom <= MapZoomThresholds.zoomOutToProvinces
-          ? MapDetailLevel.provinces
-          : MapDetailLevel.communes;
+  MapDetailLevel _resolveDetailLevel(double zoom) {
+    if (_detailLevel == MapDetailLevel.provinces) {
+      return zoom >= MapZoomThresholds.zoomInToCommunes
+          ? MapDetailLevel.communes
+          : MapDetailLevel.provinces;
     }
+    return zoom <= MapZoomThresholds.zoomOutToProvinces
+        ? MapDetailLevel.provinces
+        : MapDetailLevel.communes;
+  }
 
-    void _scheduleGestureSettled() {
-      _gestureDebounce?.cancel();
-      _gestureDebounce = Timer(MapZoomThresholds.viewportDebounce, () {
-        if (mounted) _onGestureSettled();
-      });
-    }
+  void _scheduleGestureSettled() {
+    _gestureDebounce?.cancel();
+    _gestureDebounce = Timer(MapZoomThresholds.viewportDebounce, () {
+      if (mounted) _onGestureSettled();
+    });
+  }
 
   void _onGestureSettled() {
     if (_isPointerDown) {
@@ -501,7 +503,8 @@ class _MapLodWidgetState extends State<MapLodWidget> {
   }
 
   MapShapeSource _buildProvinceSource() {
-    if (_provinceSourceCache != null && _provinceSourceCacheMode == widget.dataMode) {
+    if (_provinceSourceCache != null &&
+        _provinceSourceCacheMode == widget.dataMode) {
       return _provinceSourceCache!;
     }
 
@@ -516,26 +519,26 @@ class _MapLodWidgetState extends State<MapLodWidget> {
   MapShapeSource _buildCommuneSource() {
     if (_visibleCommunes.isEmpty || _communeGeoJson == null) {
       // Provide a tiny invisible dummy polygon inside Vietnam to prevent Syncfusion bounds calculation crashes on empty layers
-      const dummyGeoJson = '{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[105.0,15.0],[105.0,15.0001],[105.0001,15.0001],[105.0,15.0]]]},"properties":{}}]}';
+      const dummyGeoJson =
+          '{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[105.0,15.0],[105.0,15.0001],[105.0001,15.0001],[105.0,15.0]]]},"properties":{}}]}';
       return MapShapeSource.memory(
         Uint8List.fromList(utf8.encode(dummyGeoJson)),
       );
     }
 
-    final cacheKey = '${widget.repository.cacheKeyForProvinces(_visibleParentMas)}_${widget.dataMode.name}';
+    final cacheKey =
+        '${widget.repository.cacheKeyForProvinces(_visibleParentMas)}_${widget.dataMode.name}';
     final cached = _communeSourceCache[cacheKey];
     if (cached != null) return cached;
 
-    final geoJson = _communeGeoJson ?? '{"type":"FeatureCollection","features":[]}';
+    final geoJson =
+        _communeGeoJson ?? '{"type":"FeatureCollection","features":[]}';
     final source = _buildMemoryShapeSource(_visibleCommunes, geoJson);
     _communeSourceCache[cacheKey] = source;
     return source;
   }
 
-  MapShapeSource _buildMemoryShapeSource(
-    List<AdminUnit> data,
-    String geoJson,
-  ) {
+  MapShapeSource _buildMemoryShapeSource(List<AdminUnit> data, String geoJson) {
     // If no mode, return transparent without mappers
     if (widget.dataMode == MapDataMode.none) {
       return MapShapeSource.memory(
@@ -550,13 +553,20 @@ class _MapLodWidgetState extends State<MapLodWidget> {
     // Handle population, density, and area mode
     final isDensity = widget.dataMode == MapDataMode.density;
     final isArea = widget.dataMode == MapDataMode.area;
-    final maxVal = isDensity 
-        ? widget.repository.maxProvinceDensity 
-        : (isArea ? widget.repository.maxProvinceArea : widget.repository.maxProvincePopulation.toDouble());
-    final minVal = isDensity 
-        ? widget.repository.minProvinceDensity 
-        : (isArea ? widget.repository.minProvinceArea : widget.repository.minProvincePopulation.toDouble());
-    final range = (maxVal - minVal).clamp(1.0, double.infinity); // prevent div/0
+    final maxVal = isDensity
+        ? widget.repository.maxProvinceDensity
+        : (isArea
+              ? widget.repository.maxProvinceArea
+              : widget.repository.maxProvincePopulation.toDouble());
+    final minVal = isDensity
+        ? widget.repository.minProvinceDensity
+        : (isArea
+              ? widget.repository.minProvinceArea
+              : widget.repository.minProvincePopulation.toDouble());
+    final range = (maxVal - minVal).clamp(
+      1.0,
+      double.infinity,
+    ); // prevent div/0
 
     return MapShapeSource.memory(
       Uint8List.fromList(utf8.encode(geoJson)),
@@ -566,15 +576,15 @@ class _MapLodWidgetState extends State<MapLodWidget> {
       shapeColorValueMapper: (int index) {
         final isArea = widget.dataMode == MapDataMode.area;
         final isMacroRegion = widget.dataMode == MapDataMode.macroRegion;
-        
+
         if (isMacroRegion) {
           return colorForRegion(data[index].macroRegion);
         }
 
-        final val = isDensity 
-            ? data[index].matDo 
+        final val = isDensity
+            ? data[index].matDo
             : (isArea ? data[index].dienTichKm2 : data[index].danSo.toDouble());
-        
+
         double ratio;
         if (isDensity) {
           final logMin = math.log(minVal <= 0 ? 1 : minVal);
@@ -585,7 +595,7 @@ class _MapLodWidgetState extends State<MapLodWidget> {
         } else {
           ratio = ((val - minVal) / range).clamp(0.0, 1.0);
         }
-        
+
         // alpha from 20% (51) to 100% (255)
         final alpha = 51 + (204 * ratio).round();
         if (isDensity) {
@@ -598,8 +608,6 @@ class _MapLodWidgetState extends State<MapLodWidget> {
       },
     );
   }
-
-
 
   void _commitZoomLevel(double value) {
     final clamped = _clampZoom(value);
@@ -635,7 +643,8 @@ class _MapLodWidgetState extends State<MapLodWidget> {
       );
     }
 
-    final showCommuneOverlay = _detailLevel == MapDetailLevel.communes &&
+    final showCommuneOverlay =
+        _detailLevel == MapDetailLevel.communes &&
         _visibleCommunes.isNotEmpty &&
         _communeGeoJson != null;
 
@@ -663,116 +672,134 @@ class _MapLodWidgetState extends State<MapLodWidget> {
                 },
                 child: SfMapsTheme(
                   data: SfMapsThemeData(
-                  shapeHoverColor: const Color(0x8800E5FF),
-                  shapeHoverStrokeColor: const Color(0xFF00E5FF),
-                  shapeHoverStrokeWidth: 2.5,
-                ),
-                child: SfMaps(
-                  layers: [
-                    MapShapeLayer(
-                      key: ValueKey('provinces_layer_${widget.dataMode.name}'),
-                      controller: _layerController,
-                      source: _buildProvinceSource(),
-                      zoomPanBehavior: _zoomPanBehavior,
-                      onWillZoom: _handleWillZoom,
-                      onWillPan: _handleWillPan,
-                      color: Colors.transparent,
-                      strokeColor: Colors.white.withValues(
-                        alpha: showCommuneOverlay ? 0.12 : 0.22,
-                      ),
-                      strokeWidth: showCommuneOverlay ? 0.5 : 0.8,
-                      selectedIndex: _safeProvinceSelectedIndex,
-                      selectionSettings: const MapSelectionSettings(
-                        color: Color(0xAAFF9800), // Hot orange
-                        strokeColor: Color(0xFFFF5722), // Deep orange border
-                        strokeWidth: 3.5,
-                      ),
-                      onSelectionChanged: showCommuneOverlay
-                          ? null
-                          : (int index) {
-                              if (index >= 0 && index < _provinces.length) {
-                                widget.onSelectionChanged(_provinces[index]);
-                              }
-                            },
-                      sublayers: [
-                        MapShapeSublayer(
-                          source: _buildCommuneSource(),
-                          strokeColor: Colors.white.withValues(alpha: 0.55),
-                          strokeWidth: 1.0,
-                          selectedIndex: _safeCommuneSelectedIndex,
-                          selectionSettings: const MapSelectionSettings(
-                            color: Color(0xAAFF9800),
-                            strokeColor: Color(0xFFFF5722),
-                            strokeWidth: 3.5,
-                          ),
-                          onSelectionChanged: showCommuneOverlay
-                              ? (int index) {
-                                  if (index >= 0 &&
-                                      index < _visibleCommunes.length) {
-                                    widget.onSelectionChanged(
-                                      _visibleCommunes[index],
-                                    );
-                                  }
-                                }
-                              : null,
+                    shapeHoverColor: const Color(0x8800E5FF),
+                    shapeHoverStrokeColor: const Color(0xFF00E5FF),
+                    shapeHoverStrokeWidth: 2.5,
+                  ),
+                  child: SfMaps(
+                    layers: [
+                      MapShapeLayer(
+                        key: ValueKey(
+                          'provinces_layer_${widget.dataMode.name}',
                         ),
-                      ],
-                      initialMarkersCount: 2 + (widget.selectedUnit != null && widget.repository.levelForUnit(widget.selectedUnit!) == MapDetailLevel.communes ? 1 : 0),
-                      markerBuilder: (BuildContext context, int index) {
-                        if (index == 0) {
-                          return const MapMarker(
-                            latitude: 16.5,
-                            longitude: 111.8,
-                            child: _IslandMarker(
-                              label: 'Quần đảo Hoàng Sa\n(TP. Đà Nẵng)',
+                        controller: _layerController,
+                        source: _buildProvinceSource(),
+                        zoomPanBehavior: _zoomPanBehavior,
+                        onWillZoom: _handleWillZoom,
+                        onWillPan: _handleWillPan,
+                        color: Colors.transparent,
+                        strokeColor: Colors.white.withValues(
+                          alpha: showCommuneOverlay ? 0.12 : 0.22,
+                        ),
+                        strokeWidth: showCommuneOverlay ? 0.5 : 0.8,
+                        selectedIndex: _safeProvinceSelectedIndex,
+                        selectionSettings: const MapSelectionSettings(
+                          color: Color(0xAAFF9800), // Hot orange
+                          strokeColor: Color(0xFFFF5722), // Deep orange border
+                          strokeWidth: 3.5,
+                        ),
+                        onSelectionChanged: showCommuneOverlay
+                            ? null
+                            : (int index) {
+                                if (index >= 0 && index < _provinces.length) {
+                                  widget.onSelectionChanged(_provinces[index]);
+                                }
+                              },
+                        sublayers: [
+                          MapShapeSublayer(
+                            source: _buildCommuneSource(),
+                            strokeColor: Colors.white.withValues(alpha: 0.55),
+                            strokeWidth: 1.0,
+                            selectedIndex: _safeCommuneSelectedIndex,
+                            selectionSettings: const MapSelectionSettings(
+                              color: Color(0xAAFF9800),
+                              strokeColor: Color(0xFFFF5722),
+                              strokeWidth: 3.5,
                             ),
-                          );
-                        }
-                        if (index == 1) {
-                          return const MapMarker(
-                            latitude: 10.0,
-                            longitude: 114.0,
-                            child: _IslandMarker(
-                              label: 'Quần đảo Trường Sa\n(Tỉnh Khánh Hòa)',
-                            ),
-                          );
-                        }
-                        
-                         // Dùng tọa độ chính xác của unit đang được chọn
-                         final selectedUnit = widget.selectedUnit;
-                         final markerLat = selectedUnit?.centerLat ?? _zoomPanBehavior.focalLatLng?.latitude ?? 16.0;
-                         final markerLng = selectedUnit?.centerLng ?? _zoomPanBehavior.focalLatLng?.longitude ?? 106.0;
-                         return MapMarker(
-                          latitude: markerLat,
-                          longitude: markerLng,
-                          alignment: Alignment.center,
-                          size: const Size(40, 40),
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              Container(
-                                width: 30,
-                                height: 30,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: const Color(0xFF00E5FF).withValues(alpha: 0.3),
-                                ),
-                              ),
-                              const Icon(
-                                Icons.location_on,
-                                color: Color(0xFF00E5FF),
-                                size: 24,
-                              ),
-                            ],
+                            onSelectionChanged: showCommuneOverlay
+                                ? (int index) {
+                                    if (index >= 0 &&
+                                        index < _visibleCommunes.length) {
+                                      widget.onSelectionChanged(
+                                        _visibleCommunes[index],
+                                      );
+                                    }
+                                  }
+                                : null,
                           ),
-                        );
-                      },
-                      // No legend since map has no colors
-                    ),
-                  ],
+                        ],
+                        initialMarkersCount:
+                            2 +
+                            (widget.selectedUnit != null &&
+                                    widget.repository.levelForUnit(
+                                          widget.selectedUnit!,
+                                        ) ==
+                                        MapDetailLevel.communes
+                                ? 1
+                                : 0),
+                        markerBuilder: (BuildContext context, int index) {
+                          if (index == 0) {
+                            return const MapMarker(
+                              latitude: 16.5,
+                              longitude: 111.8,
+                              child: _IslandMarker(
+                                label: 'Quần đảo Hoàng Sa\n(TP. Đà Nẵng)',
+                              ),
+                            );
+                          }
+                          if (index == 1) {
+                            return const MapMarker(
+                              latitude: 10.0,
+                              longitude: 114.0,
+                              child: _IslandMarker(
+                                label: 'Quần đảo Trường Sa\n(Tỉnh Khánh Hòa)',
+                              ),
+                            );
+                          }
+
+                          // Dùng tọa độ chính xác của unit đang được chọn
+                          final selectedUnit = widget.selectedUnit;
+                          final markerLat =
+                              selectedUnit?.centerLat ??
+                              _zoomPanBehavior.focalLatLng?.latitude ??
+                              16.0;
+                          final markerLng =
+                              selectedUnit?.centerLng ??
+                              _zoomPanBehavior.focalLatLng?.longitude ??
+                              106.0;
+                          return MapMarker(
+                            latitude: markerLat,
+                            longitude: markerLng,
+                            alignment: Alignment.center,
+                            size: const Size(40, 40),
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Container(
+                                  width: 30,
+                                  height: 30,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: const Color(
+                                      0xFF00E5FF,
+                                    ).withValues(alpha: 0.3),
+                                  ),
+                                ),
+                                const Icon(
+                                  Icons.location_on,
+                                  color: Color(0xFF00E5FF),
+                                  size: 24,
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                        // No legend since map has no colors
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
             ),
             Positioned(
               right: 16,
@@ -793,10 +820,7 @@ class _ZoomControls extends StatefulWidget {
   final ValueNotifier<double> zoomNotifier;
   final ValueChanged<double> onCommitZoom;
 
-  const _ZoomControls({
-    required this.zoomNotifier,
-    required this.onCommitZoom,
-  });
+  const _ZoomControls({required this.zoomNotifier, required this.onCommitZoom});
 
   @override
   State<_ZoomControls> createState() => _ZoomControlsState();
@@ -842,8 +866,7 @@ class _ZoomControlsState extends State<_ZoomControls> {
     widget.onCommitZoom(clamped);
   }
 
-  void _zoomIn() =>
-      _commitZoomLevel(_currentZoomLevel + 0.5);
+  void _zoomIn() => _commitZoomLevel(_currentZoomLevel + 0.5);
   void _zoomOut() => _commitZoomLevel(_currentZoomLevel - 0.5);
 
   @override
@@ -999,10 +1022,7 @@ class _IslandMarker extends StatelessWidget {
             fontSize: 10,
             fontWeight: FontWeight.w600,
             shadows: [
-              Shadow(
-                color: Colors.black.withValues(alpha: 0.8),
-                blurRadius: 4,
-              ),
+              Shadow(color: Colors.black.withValues(alpha: 0.8), blurRadius: 4),
             ],
           ),
         ),
@@ -1010,7 +1030,11 @@ class _IslandMarker extends StatelessWidget {
     );
 
     return CustomPaint(
-      painter: _DashedBorderPainter(color: Colors.white38, strokeWidth: 1.2, gap: 4.0),
+      painter: _DashedBorderPainter(
+        color: Colors.white38,
+        strokeWidth: 1.2,
+        gap: 4.0,
+      ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
         child: content,
@@ -1024,7 +1048,11 @@ class _DashedBorderPainter extends CustomPainter {
   final double strokeWidth;
   final double gap;
 
-  _DashedBorderPainter({this.color = Colors.white54, this.strokeWidth = 1.0, this.gap = 4.0});
+  _DashedBorderPainter({
+    this.color = Colors.white54,
+    this.strokeWidth = 1.0,
+    this.gap = 4.0,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1046,12 +1074,14 @@ class _DashedBorderPainter extends CustomPainter {
         distance += gap * 2;
       }
     }
-    
+
     canvas.drawPath(dashedPath, paint);
   }
 
   @override
   bool shouldRepaint(covariant _DashedBorderPainter oldDelegate) {
-    return oldDelegate.color != color || oldDelegate.strokeWidth != strokeWidth || oldDelegate.gap != gap;
+    return oldDelegate.color != color ||
+        oldDelegate.strokeWidth != strokeWidth ||
+        oldDelegate.gap != gap;
   }
 }

@@ -16,11 +16,11 @@ class RegionStatsWidget extends StatelessWidget {
         map[p.macroRegion!] = (map[p.macroRegion!] ?? 0) + p.danSo;
       }
     }
-    
+
     // Sort regions by population descending
     final entries = map.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-      
+
     if (entries.isEmpty) return const SizedBox();
 
     final maxPop = entries.first.value;
@@ -31,7 +31,9 @@ class RegionStatsWidget extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF1B2838),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.15)),
+        border: Border.all(
+          color: const Color(0xFF00E5FF).withValues(alpha: 0.15),
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.2),
@@ -45,7 +47,11 @@ class RegionStatsWidget extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.bar_chart_rounded, color: Color(0xFF00E5FF), size: 24),
+              const Icon(
+                Icons.bar_chart_rounded,
+                color: Color(0xFF00E5FF),
+                size: 24,
+              ),
               const SizedBox(width: 12),
               const Text(
                 'PHÂN BỐ DÂN SỐ THEO VÙNG KINH TẾ',
@@ -67,7 +73,7 @@ class RegionStatsWidget extends StatelessWidget {
             Color color = colorForRegion(region);
             if (color == const Color(0xFF000000)) {
               // Southeast uses black in the python script, we change it to a distinct color for dark mode
-              color = const Color(0xFFE0E0E0); 
+              color = const Color(0xFFE0E0E0);
             }
             final name = regionNames[region] ?? region;
 
@@ -140,5 +146,8 @@ class RegionStatsWidget extends StatelessWidget {
     );
   }
 
-  String _fmtInt(int v) => v.toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
+  String _fmtInt(int v) => v.toString().replaceAllMapped(
+    RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+    (m) => '${m[1]},',
+  );
 }

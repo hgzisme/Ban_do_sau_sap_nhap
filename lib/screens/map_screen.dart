@@ -43,11 +43,11 @@ class _MapScreenState extends State<MapScreen> {
     try {
       await _repo.loadData();
       await _repo.preloadCommunes();
-      
+
       if (_repo.provinces.isEmpty) {
         throw Exception("Không tìm thấy dữ liệu bản đồ trong hệ thống!");
       }
-      
+
       setState(() {
         _loading = false;
         _hasError = false;
@@ -62,7 +62,7 @@ class _MapScreenState extends State<MapScreen> {
         _hasError = true;
         _errorMessage = e.toString();
       });
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -75,8 +75,6 @@ class _MapScreenState extends State<MapScreen> {
       }
     }
   }
-
-
 
   void _onSelectionChanged(AdminUnit? unit) {
     _selectedUnit.value = unit;
@@ -97,13 +95,9 @@ class _MapScreenState extends State<MapScreen> {
     }
     _selectedUnit.value = result.unit;
     setState(() {
-      _focusRequest = MapFocusRequest(
-        unit: result.unit,
-        token: ++_focusToken,
-      );
+      _focusRequest = MapFocusRequest(unit: result.unit, token: ++_focusToken);
     });
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -133,11 +127,19 @@ class _MapScreenState extends State<MapScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 64),
+              const Icon(
+                Icons.error_outline_rounded,
+                color: Colors.redAccent,
+                size: 64,
+              ),
               const SizedBox(height: 16),
               const Text(
                 'Lỗi Khởi Tạo Dữ Liệu',
-                style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 12),
               Padding(
@@ -162,7 +164,10 @@ class _MapScreenState extends State<MapScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF00E5FF),
                   foregroundColor: const Color(0xFF0F1923),
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
                 ),
               ),
             ],
@@ -211,17 +216,22 @@ class _MapScreenState extends State<MapScreen> {
                   ),
                 ),
                 Positioned(top: 16, right: 16, child: _buildLayerBadge()),
-                if (_dataMode != MapDataMode.none && _dataMode != MapDataMode.macroRegion)
+                if (_dataMode != MapDataMode.none &&
+                    _dataMode != MapDataMode.macroRegion)
                   Positioned(
                     bottom: 16,
                     right: 16,
                     child: _VerticalLegendWidget(
                       minVal: _dataMode == MapDataMode.density
                           ? _repo.minProvinceDensity
-                          : (_dataMode == MapDataMode.area ? _repo.minProvinceArea : _repo.minProvincePopulation.toDouble()),
+                          : (_dataMode == MapDataMode.area
+                                ? _repo.minProvinceArea
+                                : _repo.minProvincePopulation.toDouble()),
                       maxVal: _dataMode == MapDataMode.density
                           ? _repo.maxProvinceDensity
-                          : (_dataMode == MapDataMode.area ? _repo.maxProvinceArea : _repo.maxProvincePopulation.toDouble()),
+                          : (_dataMode == MapDataMode.area
+                                ? _repo.maxProvinceArea
+                                : _repo.maxProvincePopulation.toDouble()),
                       mode: _dataMode,
                     ),
                   ),
@@ -262,8 +272,9 @@ class _MapScreenState extends State<MapScreen> {
 
   Widget _buildLayerBadge() {
     final isProvince = _mapDetailState.level == MapDetailLevel.provinces;
-    final layerColor =
-        isProvince ? const Color(0xFF4ECDC4) : const Color(0xFFA29BFE);
+    final layerColor = isProvince
+        ? const Color(0xFF4ECDC4)
+        : const Color(0xFFA29BFE);
     final count = _mapDetailState.visibleUnitCount;
     final label = isProvince
         ? 'Cấp Tỉnh/TP ($count đơn vị)'
@@ -330,9 +341,10 @@ class _LoadingSpinnerState extends State<_LoadingSpinner>
       duration: const Duration(milliseconds: 1200),
     )..repeat(reverse: true);
 
-    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 0.8,
+      end: 1.2,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -390,9 +402,11 @@ class _VerticalLegendWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDensity = mode == MapDataMode.density;
     final isArea = mode == MapDataMode.area;
-    
-    final title = isDensity ? 'Mật độ (người/km²)' : (isArea ? 'Diện tích (km²)' : 'Dân số (người)');
-    
+
+    final title = isDensity
+        ? 'Mật độ (người/km²)'
+        : (isArea ? 'Diện tích (km²)' : 'Dân số (người)');
+
     final List<Color> gradientColors;
     if (isDensity) {
       gradientColors = [
@@ -426,7 +440,11 @@ class _VerticalLegendWidget extends StatelessWidget {
             quarterTurns: 3,
             child: Text(
               title,
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 10, letterSpacing: 1.1),
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.7),
+                fontSize: 10,
+                letterSpacing: 1.1,
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -460,9 +478,13 @@ class _VerticalLegendWidget extends StatelessWidget {
                 }
                 String label;
                 if (isDensity) {
-                  label = val > 1000 ? '${(val / 1000).toStringAsFixed(1)}K' : val.round().toString();
+                  label = val > 1000
+                      ? '${(val / 1000).toStringAsFixed(1)}K'
+                      : val.round().toString();
                 } else if (isArea) {
-                  label = val > 1000 ? '${(val / 1000).toStringAsFixed(1)}K' : val.round().toString();
+                  label = val > 1000
+                      ? '${(val / 1000).toStringAsFixed(1)}K'
+                      : val.round().toString();
                 } else {
                   label = '${(val / 1000000).toStringAsFixed(1)}M';
                 }
@@ -471,7 +493,10 @@ class _VerticalLegendWidget extends StatelessWidget {
                   left: 0,
                   child: Text(
                     label,
-                    style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 10),
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.8),
+                      fontSize: 10,
+                    ),
                   ),
                 );
               }),

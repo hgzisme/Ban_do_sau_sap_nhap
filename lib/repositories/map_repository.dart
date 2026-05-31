@@ -8,26 +8,13 @@ import '../models/map_detail_level.dart';
 import '../models/search_result.dart';
 
 /// Enum for the two geographic data layers.
-enum MapLayer {
-  provinces,
-  communes,
-}
+enum MapLayer { provinces, communes }
 
 /// Enum for map coloring mode (legacy, used by map_widget).
-enum ColorMode {
-  byType,
-  byRegion,
-}
+enum ColorMode { byType, byRegion }
 
 /// Enum for Choropleth data visualization mode.
-enum MapDataMode {
-  none,
-  population,
-  density,
-  area,
-  macroRegion,
-}
-
+enum MapDataMode { none, population, density, area, macroRegion }
 
 /// Snapshot of map LOD state for UI badges.
 class MapDetailState {
@@ -90,8 +77,12 @@ class MapRepository {
       final props = map['properties'] as Map<String, dynamic>;
 
       final ma = props['ma']?.toString();
-      double? centerLat = props['center_lat'] != null ? (props['center_lat'] as num).toDouble() : null;
-      double? centerLng = props['center_lng'] != null ? (props['center_lng'] as num).toDouble() : null;
+      double? centerLat = props['center_lat'] != null
+          ? (props['center_lat'] as num).toDouble()
+          : null;
+      double? centerLng = props['center_lng'] != null
+          ? (props['center_lng'] as num).toDouble()
+          : null;
       if (ma != null && ma.isNotEmpty) {
         final geometry = map['geometry'];
         if (geometry != null) {
@@ -106,13 +97,17 @@ class MapRepository {
         }
       }
 
-      final unit = AdminUnit.fromJson(props, centerLat: centerLat, centerLng: centerLng);
+      final unit = AdminUnit.fromJson(
+        props,
+        centerLat: centerLat,
+        centerLng: centerLng,
+      );
       _provinces.add(unit);
     }
 
     _provinceGeoJson = raw;
     _activeLayer = MapLayer.provinces;
-    
+
     if (_provinces.isNotEmpty) {
       maxProvincePopulation = _provinces.map((u) => u.danSo).reduce(math.max);
       minProvincePopulation = _provinces.map((u) => u.danSo).reduce(math.min);
@@ -121,7 +116,7 @@ class MapRepository {
       maxProvinceArea = _provinces.map((u) => u.dienTichKm2).reduce(math.max);
       minProvinceArea = _provinces.map((u) => u.dienTichKm2).reduce(math.min);
     }
-    
+
     // Preload communes so that they are instantly available for searching
     await preloadCommunes();
 
@@ -139,8 +134,12 @@ class MapRepository {
       final props = map['properties'] as Map<String, dynamic>;
 
       final ma = props['ma']?.toString();
-      double? centerLat = props['center_lat'] != null ? (props['center_lat'] as num).toDouble() : null;
-      double? centerLng = props['center_lng'] != null ? (props['center_lng'] as num).toDouble() : null;
+      double? centerLat = props['center_lat'] != null
+          ? (props['center_lat'] as num).toDouble()
+          : null;
+      double? centerLng = props['center_lng'] != null
+          ? (props['center_lng'] as num).toDouble()
+          : null;
       if (ma != null && ma.isNotEmpty) {
         final geometry = map['geometry'];
         if (geometry != null) {
@@ -155,14 +154,20 @@ class MapRepository {
         }
       }
 
-      final unit = AdminUnit.fromJson(props, centerLat: centerLat, centerLng: centerLng);
+      final unit = AdminUnit.fromJson(
+        props,
+        centerLat: centerLat,
+        centerLng: centerLng,
+      );
       _communes.add(unit);
 
       final parentMa = props['parent_ma']?.toString();
       if (parentMa == null || parentMa.isEmpty) continue;
 
       _communesByParentMa.putIfAbsent(parentMa, () => []).add(unit);
-      _rawFeatureStringsByParentMa.putIfAbsent(parentMa, () => []).add(json.encode(map));
+      _rawFeatureStringsByParentMa
+          .putIfAbsent(parentMa, () => [])
+          .add(json.encode(map));
     }
     return _communes;
   }
@@ -373,14 +378,14 @@ class MapRepository {
         final pred = removeDiacritics(origPred);
         if (pred.contains(q) || origPred.contains(q)) {
           scored.add(
-          _ScoredSearchResult(
-            unit: unit,
-            level: level,
-            matchKind: SearchMatchKind.predecessor,
-            matchLabel: predecessors,
-            rank: 2,
-          ),
-        );
+            _ScoredSearchResult(
+              unit: unit,
+              level: level,
+              matchKind: SearchMatchKind.predecessor,
+              matchLabel: predecessors,
+              rank: 2,
+            ),
+          );
         }
       }
     }
@@ -412,9 +417,6 @@ class MapRepository {
         )
         .toList();
   }
-
-  
-
 
   double tongDienTich([List<AdminUnit>? subset]) {
     final list = subset ?? activeUnits;
@@ -454,8 +456,6 @@ class _ScoredSearchResult {
     required this.rank,
   });
 }
-
-
 
 /// Returns the center (lat, lng) of the largest polygon in a geometry.
 /// For MultiPolygon, picks the polygon with the biggest bounding box area
@@ -510,7 +510,10 @@ class _ScoredSearchResult {
 
   // Fallback: full bounding box center
   final fallback = _boundsFromGeometry(geometry);
-  return ((fallback.south + fallback.north) / 2, (fallback.west + fallback.east) / 2);
+  return (
+    (fallback.south + fallback.north) / 2,
+    (fallback.west + fallback.east) / 2,
+  );
 }
 
 GeoBounds _boundsFromGeometry(dynamic geometry) {

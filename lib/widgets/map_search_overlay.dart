@@ -181,8 +181,7 @@ class _MapSearchOverlayState extends State<MapSearchOverlay> {
                         final unit = result.unit;
                         final isProvince =
                             result.level == MapDetailLevel.provinces;
-                        final badgeLabel =
-                            isProvince ? 'Tỉnh/TP' : 'Phường/Xã';
+                        final badgeLabel = isProvince ? 'Tỉnh/TP' : 'Phường/Xã';
                         final badgeColor = isProvince
                             ? const Color(0xFF4ECDC4)
                             : const Color(0xFFA29BFE);
