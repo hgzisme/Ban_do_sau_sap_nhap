@@ -28,9 +28,15 @@ class GlobalStatsWidget extends StatelessWidget {
           decoration: BoxDecoration(
             color: const Color(0xCC1B2838),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.2)),
+            border: Border.all(
+              color: const Color(0xFF00E5FF).withValues(alpha: 0.2),
+            ),
             boxShadow: [
-              BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 20, offset: const Offset(0, 4)),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.4),
+                blurRadius: 20,
+                offset: const Offset(0, 4),
+              ),
             ],
           ),
           child: Column(
@@ -39,19 +45,51 @@ class GlobalStatsWidget extends StatelessWidget {
             children: [
               const Row(
                 children: [
-                  Icon(Icons.analytics_rounded, color: Color(0xFF00E5FF), size: 18),
+                  Icon(
+                    Icons.analytics_rounded,
+                    color: Color(0xFF00E5FF),
+                    size: 18,
+                  ),
                   SizedBox(width: 8),
-                  Text('THỐNG KÊ CẢ NƯỚC', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 1.0)),
+                  Text(
+                    'THỐNG KÊ CẢ NƯỚC',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 16),
-              _StatCard(icon: Icons.map_outlined, iconColor: const Color(0xFF4FC3F7), label: 'Tổng diện tích', value: '${_fmt(tongDienTich)} km²'),
+              _StatCard(
+                icon: Icons.map_outlined,
+                iconColor: const Color(0xFF4FC3F7),
+                label: 'Tổng diện tích',
+                value: '${_fmt(tongDienTich)} km²',
+              ),
               const SizedBox(height: 10),
-              _StatCard(icon: Icons.people_outline_rounded, iconColor: const Color(0xFF81C784), label: 'Tổng dân số', value: '${_fmtInt(tongDanSo)} người'),
+              _StatCard(
+                icon: Icons.people_outline_rounded,
+                iconColor: const Color(0xFF81C784),
+                label: 'Tổng dân số',
+                value: '${_fmtInt(tongDanSo)} người',
+              ),
               const SizedBox(height: 10),
-              _StatCard(icon: Icons.speed_rounded, iconColor: const Color(0xFFFFB74D), label: 'Mật độ trung bình', value: '${_fmt(matDoTrungBinh)} người/km²'),
+              _StatCard(
+                icon: Icons.speed_rounded,
+                iconColor: const Color(0xFFFFB74D),
+                label: 'Mật độ trung bình',
+                value: '${_fmt(matDoTrungBinh)} người/km²',
+              ),
               const SizedBox(height: 10),
-              _StatCard(icon: Icons.location_city_rounded, iconColor: const Color(0xFFCE93D8), label: 'Số đơn vị HC', value: '$soLuongDonVi đơn vị'),
+              _StatCard(
+                icon: Icons.location_city_rounded,
+                iconColor: const Color(0xFFCE93D8),
+                label: 'Số đơn vị HC',
+                value: '$soLuongDonVi đơn vị',
+              ),
             ],
           ),
         ),
@@ -59,8 +97,13 @@ class GlobalStatsWidget extends StatelessWidget {
     );
   }
 
-  static String _fmt(double v) => v.toStringAsFixed(1).replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
-  static String _fmtInt(int v) => v.toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
+  static String _fmt(double v) => v
+      .toStringAsFixed(1)
+      .replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
+  static String _fmtInt(int v) => v.toString().replaceAllMapped(
+    RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+    (m) => '${m[1]},',
+  );
 }
 
 class _StatCard extends StatelessWidget {
@@ -69,7 +112,12 @@ class _StatCard extends StatelessWidget {
   final String label;
   final String value;
 
-  const _StatCard({required this.icon, required this.iconColor, required this.label, required this.value});
+  const _StatCard({
+    required this.icon,
+    required this.iconColor,
+    required this.label,
+    required this.value,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -84,7 +132,10 @@ class _StatCard extends StatelessWidget {
         children: [
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: iconColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
             child: Icon(icon, color: iconColor, size: 20),
           ),
           const SizedBox(width: 12),
@@ -92,9 +143,23 @@ class _StatCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: const TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.w500)),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white38,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(value, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700)),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ],
             ),
           ),

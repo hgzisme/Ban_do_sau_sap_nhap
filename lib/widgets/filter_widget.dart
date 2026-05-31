@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../repositories/map_repository.dart';
-import 'map_style.dart' show colorForCategory, colorForRegion, regionNames, typeLegendOrder;
+import 'map_style.dart'
+    show colorForCategory, colorForRegion, regionNames, typeLegendOrder;
 
 /// Sidebar widget with:
 /// - Layer switcher (Tỉnh/Thành phố vs Phường/Xã)
@@ -23,9 +24,7 @@ class FilterWidget extends StatelessWidget {
       width: 270,
       decoration: const BoxDecoration(
         color: Color(0xFF1B2838),
-        border: Border(
-          right: BorderSide(color: Color(0xFF2A3F54), width: 1),
-        ),
+        border: Border(right: BorderSide(color: Color(0xFF2A3F54), width: 1)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -38,7 +37,11 @@ class FilterWidget extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Icon(Icons.flag_rounded, color: Color(0xFFDA251D), size: 22),
+                    Icon(
+                      Icons.flag_rounded,
+                      color: Color(0xFFDA251D),
+                      size: 22,
+                    ),
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -56,10 +59,7 @@ class FilterWidget extends StatelessWidget {
                 SizedBox(height: 4),
                 Text(
                   'Sau sáp nhập đơn vị hành chính\nNQ 202/2025/QH15',
-                  style: TextStyle(
-                    color: Colors.white38,
-                    fontSize: 11,
-                  ),
+                  style: TextStyle(color: Colors.white38, fontSize: 11),
                 ),
               ],
             ),
@@ -124,7 +124,8 @@ class FilterWidget extends StatelessWidget {
                             icon: Icons.people_alt_rounded,
                             isActive: dataMode == MapDataMode.population,
                             accentColor: Colors.greenAccent,
-                            onTap: () => onDataModeChanged(MapDataMode.population),
+                            onTap: () =>
+                                onDataModeChanged(MapDataMode.population),
                           ),
                           const SizedBox(width: 4),
                           _LayerTab(
@@ -152,7 +153,8 @@ class FilterWidget extends StatelessWidget {
                             icon: Icons.category_rounded,
                             isActive: dataMode == MapDataMode.macroRegion,
                             accentColor: Colors.blueAccent,
-                            onTap: () => onDataModeChanged(MapDataMode.macroRegion),
+                            onTap: () =>
+                                onDataModeChanged(MapDataMode.macroRegion),
                           ),
                         ],
                       ),
@@ -285,10 +287,14 @@ class _LayerTab extends StatelessWidget {
           duration: const Duration(milliseconds: 250),
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: isActive ? accentColor.withValues(alpha: 0.15) : Colors.transparent,
+            color: isActive
+                ? accentColor.withValues(alpha: 0.15)
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(9),
             border: Border.all(
-              color: isActive ? accentColor.withValues(alpha: 0.4) : Colors.transparent,
+              color: isActive
+                  ? accentColor.withValues(alpha: 0.4)
+                  : Colors.transparent,
               width: 1,
             ),
           ),
@@ -316,4 +322,3 @@ class _LayerTab extends StatelessWidget {
     );
   }
 }
-

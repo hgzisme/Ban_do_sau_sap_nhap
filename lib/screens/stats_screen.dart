@@ -24,7 +24,7 @@ class _StatsScreenState extends State<StatsScreen> {
   Future<void> _loadData() async {
     // Load provinces data
     final provinces = await _repo.loadData();
-    
+
     if (mounted) {
       setState(() {
         _provinces = provinces;
@@ -45,7 +45,7 @@ class _StatsScreenState extends State<StatsScreen> {
             Text(
               'Đang tổng hợp số liệu...',
               style: TextStyle(color: Colors.white54, fontSize: 14),
-            )
+            ),
           ],
         ),
       );
@@ -59,7 +59,10 @@ class _StatsScreenState extends State<StatsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 32),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 32,
+                ),
                 child: RegionStatsWidget(provinces: _provinces),
               ),
             ],

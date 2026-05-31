@@ -560,7 +560,6 @@ class _ZoomButton extends StatelessWidget {
   }
 }
 
-
 // ─── Island Markers ─────────────────────────────────────────────────
 
 class _IslandMarker extends StatelessWidget {

@@ -6,20 +6,20 @@
 class AdminUnit {
   final String ten;
   final String capHanhChinh; // "type" or "cap_hanh_chinh"
-  final double dienTichKm2;   // "area_km2" or "dien_tich_km2"
-  final int danSo;            // "population" or "dan_so"
-  final double matDoRaw;      // pre-computed "density" from data (0 if not present)
+  final double dienTichKm2; // "area_km2" or "dien_tich_km2"
+  final int danSo; // "population" or "dan_so"
+  final double matDoRaw; // pre-computed "density" from data (0 if not present)
 
   // Extended fields from Hugging Face data
-  final String? ma;            // Mã đơn vị
-  final String? capital;       // Thủ phủ / trung tâm
-  final String? decree;        // Nghị quyết
-  final String? predecessors;  // Tiền thân (các đơn vị cũ)
-  final String? macroRegion;   // Vùng miền
-  final String? parentTen;     // Tên đơn vị cấp trên
-  final String? parentMa;      // Mã đơn vị cấp trên
-  final double? centerLat;    // Tọa độ trung tâm (vĩ độ)
-  final double? centerLng;    // Tọa độ trung tâm (kinh độ)
+  final String? ma; // Mã đơn vị
+  final String? capital; // Thủ phủ / trung tâm
+  final String? decree; // Nghị quyết
+  final String? predecessors; // Tiền thân (các đơn vị cũ)
+  final String? macroRegion; // Vùng miền
+  final String? parentTen; // Tên đơn vị cấp trên
+  final String? parentMa; // Mã đơn vị cấp trên
+  final double? centerLat; // Tọa độ trung tâm (vĩ độ)
+  final double? centerLng; // Tọa độ trung tâm (kinh độ)
 
   const AdminUnit({
     required this.ten,
@@ -57,7 +57,8 @@ class AdminUnit {
   }) {
     // Detect which schema: HuggingFace uses "type", legacy uses "cap_hanh_chinh"
     // The islands use "name_special_unit" or we can default to "Quần đảo"
-    String cap = (json['type'] as String?) ??
+    String cap =
+        (json['type'] as String?) ??
         (json['cap_hanh_chinh'] as String?) ??
         (json['name_special_unit'] as String?) ??
         'Không rõ';
@@ -66,20 +67,24 @@ class AdminUnit {
       cap = 'Quần đảo';
     }
 
-    final double area = (json['area_km2'] as num?)?.toDouble() ??
+    final double area =
+        (json['area_km2'] as num?)?.toDouble() ??
         (json['dien_tich_km2'] as num?)?.toDouble() ??
         0.0;
 
-    final int pop = (json['population'] as num?)?.toInt() ??
+    final int pop =
+        (json['population'] as num?)?.toInt() ??
         (json['dan_so'] as num?)?.toInt() ??
         0;
 
     final double density = (json['density'] as num?)?.toDouble() ?? 0.0;
 
-    final double? parsedCenterLat = centerLat ??
+    final double? parsedCenterLat =
+        centerLat ??
         (json['center_lat'] as num?)?.toDouble() ??
         (json['latitude'] as num?)?.toDouble();
-    final double? parsedCenterLng = centerLng ??
+    final double? parsedCenterLng =
+        centerLng ??
         (json['center_lng'] as num?)?.toDouble() ??
         (json['longitude'] as num?)?.toDouble();
 
@@ -92,7 +97,10 @@ class AdminUnit {
     }
 
     // Ten can be "ten" or "shapeName" (for islands)
-    final String ten = (json['ten'] as String?) ?? (json['shapeName'] as String?) ?? 'Không rõ';
+    final String ten =
+        (json['ten'] as String?) ??
+        (json['shapeName'] as String?) ??
+        'Không rõ';
 
     // macro_region is empty for islands, we can infer from admin_post_merger
     String? macroRegion = parseStr(json['macro_region']);
@@ -112,7 +120,8 @@ class AdminUnit {
       decree: parseStr(json['decree']),
       predecessors: parseStr(json['predecessors']),
       macroRegion: macroRegion,
-      parentTen: parseStr(json['parent_ten']) ?? parseStr(json['admin_post_merger']),
+      parentTen:
+          parseStr(json['parent_ten']) ?? parseStr(json['admin_post_merger']),
       parentMa: parseStr(json['parent_ma']),
       centerLat: parsedCenterLat,
       centerLng: parsedCenterLng,

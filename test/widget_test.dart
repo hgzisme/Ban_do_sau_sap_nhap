@@ -11,9 +11,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:vietnam_merged_map/main.dart';
 import 'package:vietnam_merged_map/models/admin_unit.dart';
 import 'package:vietnam_merged_map/widgets/detail_panel_widget.dart';
-void main() {
 
-  testWidgets('Detail panel shows coordinates in thủ phủ row', (WidgetTester tester) async {
+void main() {
+  testWidgets('Detail panel shows coordinates in thủ phủ row', (
+    WidgetTester tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(

@@ -1,7 +1,4 @@
-enum MapDetailLevel {
-  provinces,
-  communes,
-}
+enum MapDetailLevel { provinces, communes }
 
 class MapZoomThresholds {
   static const double defaultZoomLevel = 1.0;

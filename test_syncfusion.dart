@@ -20,23 +20,18 @@ void main() {
         return props['ma'];
       },
     );
-    
+
     // Create a scaffold
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: SfMaps(
-            layers: [
-              MapShapeLayer(
-                source: source,
-                selectedIndex: -1,
-              ),
-            ],
+            layers: [MapShapeLayer(source: source, selectedIndex: -1)],
           ),
         ),
-      )
+      ),
     );
-    
+
     await tester.pumpAndSettle();
     print("Done");
   });

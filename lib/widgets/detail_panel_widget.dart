@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/admin_unit.dart';
-import 'map_style.dart' show colorForCategory, colorForRegion, regionDisplayName;
+import 'map_style.dart'
+    show colorForCategory, colorForRegion, regionDisplayName;
 
 /// Panel showing detailed info for a selected/hovered administrative unit.
 ///
@@ -17,14 +18,13 @@ class DetailPanelWidget extends StatelessWidget {
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 300),
       transitionBuilder: (child, anim) => SlideTransition(
-        position: Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
-          CurvedAnimation(parent: anim, curve: Curves.easeOut),
-        ),
+        position: Tween<Offset>(
+          begin: const Offset(0, 0.1),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOut)),
         child: FadeTransition(opacity: anim, child: child),
       ),
-      child: unit == null
-          ? _placeholder()
-          : _content(unit!),
+      child: unit == null ? _placeholder() : _content(unit!),
     );
   }
 
@@ -58,37 +58,60 @@ class DetailPanelWidget extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-              // Header with close button
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: const [
-                      Icon(Icons.info_outline_rounded, color: Color(0xFF00E5FF), size: 16),
-                      SizedBox(width: 6),
-                      Text('CHI TIẾT', style: TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.8)),
-                    ],
-                  ),
-                  // Close button
-                  if (onClose != null)
-                    GestureDetector(
-                      onTap: onClose,
-                      child: Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.04),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(Icons.close_rounded, size: 18, color: Colors.white70),
+            // Header with close button
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: const [
+                    Icon(
+                      Icons.info_outline_rounded,
+                      color: Color(0xFF00E5FF),
+                      size: 16,
+                    ),
+                    SizedBox(width: 6),
+                    Text(
+                      'CHI TIẾT',
+                      style: TextStyle(
+                        color: Colors.white38,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.8,
                       ),
                     ),
-                ],
-              ),
+                  ],
+                ),
+                // Close button
+                if (onClose != null)
+                  GestureDetector(
+                    onTap: onClose,
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.04),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.close_rounded,
+                        size: 18,
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
             const SizedBox(height: 14),
 
             // Name
-            Text(u.ten, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+            Text(
+              u.ten,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
             const SizedBox(height: 8),
 
             // Badge
@@ -99,16 +122,28 @@ class DetailPanelWidget extends StatelessWidget {
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(color: catColor.withValues(alpha: 0.5)),
               ),
-              child: Text(u.capHanhChinh, style: TextStyle(color: catColor, fontSize: 12, fontWeight: FontWeight.w600)),
+              child: Text(
+                u.capHanhChinh,
+                style: TextStyle(
+                  color: catColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
             if (u.macroRegion != null) ...[
               const SizedBox(height: 6),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: colorForRegion(u.macroRegion).withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: colorForRegion(u.macroRegion).withValues(alpha: 0.5)),
+                  border: Border.all(
+                    color: colorForRegion(u.macroRegion).withValues(alpha: 0.5),
+                  ),
                 ),
                 child: Text(
                   regionDisplayName(u.macroRegion),
@@ -123,11 +158,26 @@ class DetailPanelWidget extends StatelessWidget {
             const SizedBox(height: 16),
 
             // Core Stats
-            _infoRow(Icons.map_outlined, const Color(0xFF4FC3F7), 'Diện tích', '${_fmt(u.dienTichKm2)} km²'),
+            _infoRow(
+              Icons.map_outlined,
+              const Color(0xFF4FC3F7),
+              'Diện tích',
+              '${_fmt(u.dienTichKm2)} km²',
+            ),
             const SizedBox(height: 8),
-            _infoRow(Icons.people_outline_rounded, const Color(0xFF81C784), 'Dân số', '${_fmtInt(u.danSo)} người'),
+            _infoRow(
+              Icons.people_outline_rounded,
+              const Color(0xFF81C784),
+              'Dân số',
+              '${_fmtInt(u.danSo)} người',
+            ),
             const SizedBox(height: 8),
-            _infoRow(Icons.speed_rounded, const Color(0xFFFFB74D), 'Mật độ', '${_fmt(u.matDo)} người/km²'),
+            _infoRow(
+              Icons.speed_rounded,
+              const Color(0xFFFFB74D),
+              'Mật độ',
+              '${_fmt(u.matDo)} người/km²',
+            ),
 
             // Extended info from HuggingFace
             if (u.capital != null) ...[
@@ -136,12 +186,20 @@ class DetailPanelWidget extends StatelessWidget {
                 Icons.location_city_rounded,
                 const Color(0xFFCE93D8),
                 'Thủ phủ',
-                [u.capital!, if (u.coordinateSummary != null) u.coordinateSummary!].join('\n'),
+                [
+                  u.capital!,
+                  if (u.coordinateSummary != null) u.coordinateSummary!,
+                ].join('\n'),
               ),
             ],
             if (u.decree != null) ...[
               const SizedBox(height: 8),
-              _infoRow(Icons.gavel_rounded, const Color(0xFF90CAF9), 'Nghị quyết', u.decree!),
+              _infoRow(
+                Icons.gavel_rounded,
+                const Color(0xFF90CAF9),
+                'Nghị quyết',
+                u.decree!,
+              ),
             ],
             if (u.predecessors != null) ...[
               const SizedBox(height: 12),
@@ -154,7 +212,12 @@ class DetailPanelWidget extends StatelessWidget {
             ],
             if (u.parentTen != null) ...[
               const SizedBox(height: 8),
-              _infoRow(Icons.account_tree_rounded, const Color(0xFFFFCC02), 'Thuộc', u.parentTen!),
+              _infoRow(
+                Icons.account_tree_rounded,
+                const Color(0xFFFFCC02),
+                'Thuộc',
+                u.parentTen!,
+              ),
             ],
           ],
         ),
@@ -179,11 +242,18 @@ class DetailPanelWidget extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: const TextStyle(color: Colors.white38, fontSize: 10)),
+                Text(
+                  label,
+                  style: const TextStyle(color: Colors.white38, fontSize: 10),
+                ),
                 const SizedBox(height: 1),
                 Text(
                   value,
-                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -196,7 +266,12 @@ class DetailPanelWidget extends StatelessWidget {
   }
 
   /// A collapsible info row for long text like predecessors.
-  Widget _expandableInfo(IconData icon, Color color, String label, String value) {
+  Widget _expandableInfo(
+    IconData icon,
+    Color color,
+    String label,
+    String value,
+  ) {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
@@ -211,13 +286,20 @@ class DetailPanelWidget extends StatelessWidget {
             children: [
               Icon(icon, color: color, size: 18),
               const SizedBox(width: 10),
-              Text(label, style: const TextStyle(color: Colors.white38, fontSize: 10)),
+              Text(
+                label,
+                style: const TextStyle(color: Colors.white38, fontSize: 10),
+              ),
             ],
           ),
           const SizedBox(height: 6),
           Text(
             value,
-            style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.4),
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+              height: 1.4,
+            ),
             maxLines: 5,
             overflow: TextOverflow.ellipsis,
           ),
@@ -226,6 +308,11 @@ class DetailPanelWidget extends StatelessWidget {
     );
   }
 
-  String _fmt(double v) => v.toStringAsFixed(1).replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
-  String _fmtInt(int v) => v.toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
+  String _fmt(double v) => v
+      .toStringAsFixed(1)
+      .replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
+  String _fmtInt(int v) => v.toString().replaceAllMapped(
+    RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+    (m) => '${m[1]},',
+  );
 }

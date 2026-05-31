@@ -6,7 +6,7 @@ void main() {
   final jsonStr = file.readAsStringSync();
   final data = json.decode(jsonStr);
   final features = data['features'] as List;
-  
+
   final regions = <String>{};
   for (final f in features) {
     final props = f['properties'];
