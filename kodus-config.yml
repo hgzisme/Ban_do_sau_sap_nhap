@@ -1,0 +1,15 @@
+runOnDraft: false
+reviewCadence:
+  type: manual
+reviewOptions:
+  bug: true
+  security: true
+  performance: false
+  business_logic: false
+suggestionControl:
+  limitationType: pr
+  maxSuggestions: 6
+  severityLevelFilter: critical
+  applyFiltersToKodyRules: true
+v2PromptOverrides: {}
+automatedReviewActive: true
